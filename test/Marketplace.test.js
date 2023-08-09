@@ -1,7 +1,5 @@
 const { ethers } = require("hardhat")
-const { hexlify, randomBytes } = ethers.utils
-const { AddressZero } = ethers.constants
-const { BigNumber } = ethers
+const { AddressZero, hexlify, randomBytes } = ethers
 const { expect } = require("chai")
 const { exampleConfiguration, exampleRequest } = require("./examples")
 const { periodic, hours } = require("./time")
@@ -752,10 +750,10 @@ describe("Marketplace", function () {
       await marketplace.fillSlot(slot.request, slot.index, proof)
       await waitUntilProofIsRequired(id)
       const challenge1 = await marketplace.getChallenge(id)
-      expect(BigNumber.from(challenge1).gt(0))
+      expect(BigInt(challenge1) > 0n)
       await advanceTimeTo(request.expiry + 1)
       const challenge2 = await marketplace.getChallenge(id)
-      expect(BigNumber.from(challenge2).isZero())
+      expect(BigInt(challenge2) === 0n)
     })
 
     it("does not provide pointer once cancelled", async function () {
@@ -763,10 +761,10 @@ describe("Marketplace", function () {
       await marketplace.fillSlot(slot.request, slot.index, proof)
       await waitUntilProofIsRequired(id)
       const challenge1 = await marketplace.getChallenge(id)
-      expect(BigNumber.from(challenge1).gt(0))
+      expect(BigInt(challenge1) > 0n)
       await advanceTimeTo(request.expiry + 1)
       const challenge2 = await marketplace.getChallenge(id)
-      expect(BigNumber.from(challenge2).isZero())
+      expect(BigInt(challenge2) === 0n)
     })
   })
 
@@ -820,9 +818,7 @@ describe("Marketplace", function () {
           (request.ask.collateral * (100 - slashPercentage)) / 100
 
         expect(
-          BigNumber.from(expectedBalance).eq(
-            await marketplace.getSlotCollateral(id)
-          )
+          BigInt(expectedBalance) === await marketplace.getSlotCollateral(id)
         )
       })
     })

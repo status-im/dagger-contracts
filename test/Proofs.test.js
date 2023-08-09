@@ -1,6 +1,6 @@
 const { expect } = require("chai")
 const { ethers } = require("hardhat")
-const { hexlify, randomBytes } = ethers.utils
+const { hexlify, randomBytes } = ethers
 const {
   snapshot,
   revert,

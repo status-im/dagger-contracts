@@ -1,5 +1,5 @@
 # Variables
-ARG BUILDER=node:18.16.0-alpine3.17
+ARG BUILDER=node:18.17.0-alpine3.17
 ARG IMAGE=${BUILDER}
 ARG APP_USER=root
 ARG APP_HOME=/hardhat

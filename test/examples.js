@@ -1,7 +1,7 @@
 const { ethers } = require("hardhat")
 const { hours } = require("./time")
 const { currentTime } = require("./evm")
-const { hexlify, randomBytes } = ethers.utils
+const { hexlify, randomBytes } = ethers
 
 const exampleConfiguration = () => ({
   collateral: {

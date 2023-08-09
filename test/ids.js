@@ -1,5 +1,5 @@
 const { ethers } = require("hardhat")
-const { keccak256, defaultAbiCoder } = ethers.utils
+const { keccak256, defaultAbiCoder } = ethers
 
 function requestId(request) {
   const Ask = "tuple(int64, uint256, uint256, uint256, uint256, uint256, int64)"
