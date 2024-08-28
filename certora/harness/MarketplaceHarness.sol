@@ -7,9 +7,12 @@ import {IGroth16Verifier} from "../../contracts/Groth16.sol";
 import {MarketplaceConfig} from "../../contracts/Configuration.sol";
 import {Marketplace} from "../../contracts/Marketplace.sol";
 import {RequestId, SlotId} from "../../contracts/Requests.sol";
+import {Request} from "../../contracts/Requests.sol";
 
 contract MarketplaceHarness is Marketplace {
-    constructor(MarketplaceConfig memory config, IERC20 token, IGroth16Verifier verifier) Marketplace(config, token, verifier) {}
+    constructor(MarketplaceConfig memory config, IERC20 token, IGroth16Verifier verifier)
+        Marketplace(config, token, verifier)
+    {}
 
     function requestContext(RequestId requestId) public returns (Marketplace.RequestContext memory) {
         return _requestContexts[requestId];
@@ -23,4 +26,3 @@ contract MarketplaceHarness is Marketplace {
         return _periodEnd(period);
     }
 }
-

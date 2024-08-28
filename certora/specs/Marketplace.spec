@@ -14,6 +14,14 @@ ghost mathint sumOfBalances {
     init_state axiom sumOfBalances == 0;
 }
 
+ghost mathint requestsCount {
+    init_state axiom requestsCount == 0;
+}
+
+ghost mathint sumOfAllRequestPrices {
+    init_state axiom sumOfAllRequestPrices == 0;
+}
+
 hook Sload uint256 balance Token._balances[KEY address addr] {
     require sumOfBalances >= to_mathint(balance);
 }
@@ -95,7 +103,21 @@ hook Sstore _requestContexts[KEY Marketplace.RequestId requestId].state Marketpl
     if (oldState != newState) {
         requestStateChangesCount = requestStateChangesCount + 1;
     }
+
+    if (oldState == Marketplace.RequestState.New && newState == Marketplace.RequestState.Cancelled) {
+        uint256 duration = currentContract._requests[requestId].ask.duration;
+        uint256 slots = currentContract._requests[requestId].ask.slots;
+        uint256 reward = currentContract._requests[requestId].ask.reward;
+        sumOfAllRequestPrices = sumOfAllRequestPrices - reward * duration * slots;
+    }
 }
+
+hook Sstore _requests[KEY Marketplace.RequestId requestId].ask.reward uint256 value (uint256 oldValue) {
+    uint256 duration = currentContract._requests[requestId].ask.duration;
+    uint256 slots = currentContract._requests[requestId].ask.slots;
+    sumOfAllRequestPrices = sumOfAllRequestPrices + value * duration * slots;
+}
+
 
 ghost mathint slotStateChangesCount {
     init_state axiom slotStateChangesCount == 0;
@@ -104,6 +126,22 @@ ghost mathint slotStateChangesCount {
 hook Sstore _slots[KEY Marketplace.SlotId slotId].state Marketplace.SlotState newState (Marketplace.SlotState oldState) {
     if (oldState != newState) {
         slotStateChangesCount = slotStateChangesCount + 1;
+    }
+}
+
+// hook Sstore _requests[KEY Marketplace.RequestId requestId].client address value (address oldValue) {
+//     if (oldValue == 0 && value != 0) {
+//         requestsCount = requestsCount + 1;
+//     }
+// }
+
+hook Sstore _requestsPerClient[KEY address client]._inner._values[INDEX uint i] bytes32 value (bytes32 oldValue) {
+    bytes32 zero = to_bytes32(0);
+    if (value != zero && oldValue == value) {
+        requestsCount = requestsCount + 1;
+    } else {
+        // commented out for now that we are only checking balance/requests increase
+        // requestsCount = requestsCount - 1;
     }
 }
 
@@ -190,6 +228,9 @@ invariant cancelledSlotAlwaysHasCancelledRequest(env e, Marketplace.SlotId slotI
     currentContract.slotState(e, slotId) == Marketplace.SlotState.Cancelled =>
         currentContract.requestState(e, currentContract.slots(e, slotId).requestId) == Marketplace.RequestState.Cancelled;
 
+invariant requestsCountIsGreaterOrEqualToZero()
+    requestsCount >= 0;
+
 /*--------------------------------------------
 |                 Properties                 |
 --------------------------------------------*/
@@ -243,7 +284,7 @@ rule allowedRequestStateChanges(env e, method f) {
 
     Marketplace.RequestId requestId = currentContract.slots(e, slotId).requestId;
 
-    // needed, otherwise it finds counter examples where 
+    // needed, otherwise it finds counter examples where
     // `SlotState.Cancelled` and `RequestState.New`
     requireInvariant cancelledSlotAlwaysHasCancelledRequest(e, slotId);
     // needed, otherwise it finds counter example where
@@ -255,11 +296,11 @@ rule allowedRequestStateChanges(env e, method f) {
     // However, `requestId == 0` enforces `SlotState.Free` in the `fillSlot` function regardless,
     // which ultimately results in counter examples where we have a state change
     // RequestState.Cancelled -> RequestState.Finished, which is forbidden.
-    // 
+    //
     // COUNTER EXAMPLE: https://prover.certora.com/output/6199/3a4f410e6367422ba60b218a08c04fae?anonymousKey=0d7003af4ee9bc18c0da0c80a216a6815d397370
-    // 
-    // The `require` below is a hack to ensure we exclude such cases as the code 
-    // reverts in `requestIsKnown()` modifier (simply `require requestId != 0` isn't 
+    //
+    // The `require` below is a hack to ensure we exclude such cases as the code
+    // reverts in `requestIsKnown()` modifier (simply `require requestId != 0` isn't
     // sufficient here)
     require requestId == to_bytes32(0) => currentContract._requests[requestId].client == 0;
 
@@ -372,4 +413,26 @@ rule slotStateChangesOnlyOncePerFunctionCall(env e, method f) {
     mathint slotStateChangesCountAfter =slotStateChangesCount;
 
     assert slotStateChangesCountAfter <= slotStateChangesCountBefore + 1;
+}
+
+rule contractBalanceIncreasesWhenRequestsAmountIncreases(env e, method f) {
+    requireInvariant totalSupplyIsSumOfBalances();
+    requireInvariant requestsCountIsGreaterOrEqualToZero();
+
+    calldataarg args;
+
+    mathint balanceBefore = Token.balanceOf(e, currentContract);
+    mathint requestsCountBefore = requestsCount;
+    mathint sumOfAllRequestPricesBefore = sumOfAllRequestPrices;
+
+    require e.msg.sender != currentContract;
+    require e.msg.sender != 0;
+    f(e, args);
+
+    mathint balanceAfter = Token.balanceOf(e, currentContract);
+    mathint requestsCountAfter = requestsCount;
+    mathint sumOfAllRequestPricesAfter = sumOfAllRequestPrices;
+
+    assert requestsCountAfter > requestsCountBefore => sumOfAllRequestPricesAfter >= sumOfAllRequestPricesBefore;
+    assert requestsCountAfter > requestsCountBefore => balanceAfter >= balanceBefore + (sumOfAllRequestPricesAfter - sumOfAllRequestPricesBefore);
 }
