@@ -65,20 +65,14 @@ contract Marketplace is SlotReservations, Proofs, StateRetrieval, Endian {
     MarketplaceConfig memory config,
     IERC20 token_,
     IGroth16Verifier verifier
-  )
-    SlotReservations(config.reservations)
-    Proofs(config.proofs, verifier)
-  {
+  ) SlotReservations(config.reservations) Proofs(config.proofs, verifier) {
     _token = token_;
 
     require(
       config.collateral.repairRewardPercentage <= 100,
       "Must be less than 100"
     );
-    require(
-      config.collateral.slashPercentage <= 100,
-      "Must be less than 100"
-    );
+    require(config.collateral.slashPercentage <= 100, "Must be less than 100");
     require(
       config.collateral.maxNumberOfSlashes *
         config.collateral.slashPercentage <=
