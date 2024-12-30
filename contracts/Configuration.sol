@@ -7,6 +7,7 @@ struct MarketplaceConfig {
   CollateralConfig collateral;
   ProofConfig proofs;
   SlotReservationsConfig reservations;
+  uint256 requestDurationLimit;
 }
 
 struct CollateralConfig {
