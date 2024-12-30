@@ -189,6 +189,14 @@ describe("Marketplace", function () {
       )
     })
 
+    it("rejects request with duration exceeding limit", async function () {
+      request.ask.duration = config.requestDurationLimit + 1
+      await token.approve(marketplace.address, maxPrice(request))
+      await expect(marketplace.requestStorage(request)).to.be.revertedWith(
+        "Duration exceeds limit"
+      )
+    })
+
     it("rejects request with insufficient payment", async function () {
       let insufficient = maxPrice(request) - 1
       await token.approve(marketplace.address, insufficient)

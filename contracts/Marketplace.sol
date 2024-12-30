@@ -62,30 +62,23 @@ contract Marketplace is SlotReservations, Proofs, StateRetrieval, Endian {
   }
 
   constructor(
-    MarketplaceConfig memory configuration,
+    MarketplaceConfig memory conf,
     IERC20 token_,
     IGroth16Verifier verifier
-  )
-    SlotReservations(configuration.reservations)
-    Proofs(configuration.proofs, verifier)
-  {
+  ) SlotReservations(conf.reservations) Proofs(conf.proofs, verifier) {
     _token = token_;
 
     require(
-      configuration.collateral.repairRewardPercentage <= 100,
+      conf.collateral.repairRewardPercentage <= 100,
       "Must be less than 100"
     );
+    require(conf.collateral.slashPercentage <= 100, "Must be less than 100");
     require(
-      configuration.collateral.slashPercentage <= 100,
-      "Must be less than 100"
-    );
-    require(
-      configuration.collateral.maxNumberOfSlashes *
-        configuration.collateral.slashPercentage <=
+      conf.collateral.maxNumberOfSlashes * conf.collateral.slashPercentage <=
         100,
       "Maximum slashing exceeds 100%"
     );
-    _config = configuration;
+    _config = conf;
   }
 
   function configuration() public view returns (MarketplaceConfig memory) {
@@ -104,6 +97,10 @@ contract Marketplace is SlotReservations, Proofs, StateRetrieval, Endian {
     require(
       request.expiry > 0 && request.expiry < request.ask.duration,
       "Expiry not in range"
+    );
+    require(
+      request.ask.duration <= _config.requestDurationLimit,
+      "Duration exceeds limit"
     );
     require(request.ask.slots > 0, "Insufficient slots");
     require(
