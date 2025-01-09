@@ -18,7 +18,7 @@ struct Ask {
   uint256 duration; // how long content should be stored (in seconds)
   uint256 proofProbability; // how often storage proofs are required
   uint256 pricePerByte; // amount of tokens paid per second per byte slot to hosts
-  uint256 collateral; // amount of tokens required to be deposited by the hosts in order to fill the slot
+  uint256 collateralPerByte; // amount of tokens per byte required to be deposited by the hosts in order to fill the slot
   uint64 maxSlotLoss; // Max slots that can be lost without data considered to be lost
 }
 
