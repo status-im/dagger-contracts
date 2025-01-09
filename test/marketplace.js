@@ -15,7 +15,8 @@ async function waitUntilCancelled(request) {
 }
 
 async function waitUntilSlotsFilled(contract, request, proof, token, slots) {
-  await token.approve(contract.address, request.ask.collateral * slots.length)
+  let collateral = request.ask.collateralPerByte * request.ask.slotSize
+  await token.approve(contract.address, collateral * slots.length)
 
   let requestEnd = (await contract.requestEnd(requestId(request))).toNumber()
   const payouts = []
