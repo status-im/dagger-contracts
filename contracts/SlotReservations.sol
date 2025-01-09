@@ -7,6 +7,7 @@ import "./Configuration.sol";
 
 abstract contract SlotReservations {
   using EnumerableSet for EnumerableSet.AddressSet;
+  error SlotReservations_ReservationNotAllowed();
 
   mapping(SlotId => EnumerableSet.AddressSet) internal _reservations;
   SlotReservationsConfig private _config;
@@ -18,7 +19,8 @@ abstract contract SlotReservations {
   function _slotIsFree(SlotId slotId) internal view virtual returns (bool);
 
   function reserveSlot(RequestId requestId, uint256 slotIndex) public {
-    require(canReserveSlot(requestId, slotIndex), "Reservation not allowed");
+    if (!canReserveSlot(requestId, slotIndex))
+      revert SlotReservations_ReservationNotAllowed();
 
     SlotId slotId = Requests.slotId(requestId, slotIndex);
     _reservations[slotId].add(msg.sender);

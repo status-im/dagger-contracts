@@ -66,7 +66,7 @@ describe("SlotReservations", function () {
   it("cannot reserve a slot more than once", async function () {
     await reservations.reserveSlot(reqId, slotIndex)
     await expect(reservations.reserveSlot(reqId, slotIndex)).to.be.revertedWith(
-      "Reservation not allowed"
+      "SlotReservations_ReservationNotAllowed"
     )
     expect(await reservations.length(id)).to.equal(1)
   })
