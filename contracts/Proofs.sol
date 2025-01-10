@@ -39,8 +39,8 @@ abstract contract Proofs is Periods {
     _verifier = verifier;
   }
 
-  mapping(SlotId => uint256) private _slotStarts; // TODO: Should be smaller than uint256
-  mapping(SlotId => uint256) private _missed; // TODO: Should be smaller than uint256
+  mapping(SlotId => uint64) private _slotStarts;
+  mapping(SlotId => uint64) private _missed;
   mapping(SlotId => mapping(Period => bool)) private _received;
   mapping(SlotId => mapping(Period => bool)) private _missing;
 
@@ -55,7 +55,7 @@ abstract contract Proofs is Periods {
   /**
    * @return Number of missed proofs since Slot was Filled
    */
-  function missingProofs(SlotId slotId) public view returns (uint256) {
+  function missingProofs(SlotId slotId) public view returns (uint64) {
     return _missed[slotId];
   }
 
@@ -73,7 +73,7 @@ abstract contract Proofs is Periods {
    *     and saves the required probability.
    */
   function _startRequiringProofs(SlotId id) internal {
-    _slotStarts[id] = block.timestamp;
+    _slotStarts[id] = uint64(block.timestamp);
   }
 
   /**

@@ -9,8 +9,13 @@ contract FuzzMarketplace is Marketplace {
   constructor()
     Marketplace(
       MarketplaceConfig(
+<<<<<<< HEAD
         CollateralConfig(10, 5, 10, 20),
         ProofConfig(10, 5, 64, "", 67),
+=======
+        CollateralConfig(10, 5, 3, 10),
+        ProofConfig(10, 5, 64, 67, ""),
+>>>>>>> 4cd517a (perf: more optimizations)
         SlotReservationsConfig(20)
       ),
       new TestToken(),
