@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.23;
+pragma solidity 0.8.28;
 
 contract Endian {
   /// reverses byte order to allow conversion between little endian and big

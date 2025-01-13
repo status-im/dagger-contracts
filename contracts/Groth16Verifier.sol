@@ -17,7 +17,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.23;
+pragma solidity 0.8.28;
 import "./Groth16.sol";
 
 contract Groth16Verifier is IGroth16Verifier {
