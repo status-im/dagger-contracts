@@ -8,27 +8,37 @@ using SafeERC20 for IERC20;
 
 contract Vault {
   IERC20 private immutable _token;
-  mapping(address => mapping(bytes32 => uint256)) private _amounts;
+
+  type Controller is address;
+  type Context is bytes32;
+  type Recipient is address;
+
+  mapping(Controller => mapping(Context => mapping(Recipient => uint256)))
+    private _available;
 
   constructor(IERC20 token) {
     _token = token;
   }
 
-  function amount(bytes32 id) public view returns (uint256) {
-    return _amounts[msg.sender][id];
+  function balance(
+    Context context,
+    Recipient recipient
+  ) public view returns (uint256) {
+    Controller controller = Controller.wrap(msg.sender);
+    return _available[controller][context][recipient];
   }
 
-  function deposit(bytes32 id, address from, uint256 value) public {
-    require(_amounts[msg.sender][id] == 0, DepositAlreadyExists(id));
-    _amounts[msg.sender][id] = value;
-    _token.safeTransferFrom(from, address(this), value);
+  function deposit(Context context, address from, uint256 amount) public {
+    Controller controller = Controller.wrap(msg.sender);
+    Recipient recipient = Recipient.wrap(from);
+    _available[controller][context][recipient] += amount;
+    _token.safeTransferFrom(from, address(this), amount);
   }
 
-  function withdraw(bytes32 id, address recipient) public {
-    uint256 value = _amounts[msg.sender][id];
-    delete _amounts[msg.sender][id];
-    _token.safeTransfer(recipient, value);
+  function withdraw(Context context, Recipient recipient) public {
+    Controller controller = Controller.wrap(msg.sender);
+    uint256 amount = _available[controller][context][recipient];
+    delete _available[controller][context][recipient];
+    _token.safeTransfer(Recipient.unwrap(recipient), amount);
   }
-
-  error DepositAlreadyExists(bytes32 id);
 }
