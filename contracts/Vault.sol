@@ -41,4 +41,11 @@ contract Vault {
     delete _available[controller][context][recipient];
     _token.safeTransfer(Recipient.unwrap(recipient), amount);
   }
+
+  function burn(Context context, Recipient recipient) public {
+    Controller controller = Controller.wrap(msg.sender);
+    uint256 amount = _available[controller][context][recipient];
+    delete _available[controller][context][recipient];
+    _token.safeTransfer(address(0xdead), amount);
+  }
 }

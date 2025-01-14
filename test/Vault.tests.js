@@ -96,4 +96,35 @@ describe("Vault", function () {
       expect(after).to.equal(before)
     })
   })
+
+  describe("burning", function () {
+    const context = randomBytes(32)
+    const amount = 42
+
+    beforeEach(async function () {
+      await token.connect(account).approve(vault.address, amount)
+      await vault.deposit(context, account.address, amount)
+    })
+
+    it("can burn a deposit", async function () {
+      await vault.burn(context, account.address)
+      expect(await vault.balance(context, account.address)).to.equal(0)
+    })
+
+    it("no longer allows withdrawal", async function () {
+      await vault.burn(context, account.address)
+      const before = await token.balanceOf(account.address)
+      await vault.withdraw(context, account.address)
+      const after = await token.balanceOf(account.address)
+      expect(after).to.equal(before)
+    })
+
+    it("moves the tokens to address 0xdead", async function () {
+      const dead = "0x000000000000000000000000000000000000dead"
+      const before = await token.balanceOf(dead)
+      await vault.burn(context, account.address)
+      const after = await token.balanceOf(dead)
+      expect(after - before).to.equal(amount)
+    })
+  })
 })
