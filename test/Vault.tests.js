@@ -127,4 +127,53 @@ describe("Vault", function () {
       expect(after - before).to.equal(amount)
     })
   })
+
+  describe("transfering", function () {
+    const context = randomBytes(32)
+    const amount = 42
+
+    let other
+
+    beforeEach(async function () {
+      ;[, , other] = await ethers.getSigners()
+      await token.connect(account).approve(vault.address, amount)
+      await vault.deposit(context, account.address, amount)
+    })
+
+    it("can transfer tokens from one recipient to the other", async function () {
+      await vault.transfer(context, account.address, other.address, amount)
+      expect(await vault.balance(context, account.address)).to.equal(0)
+      expect(await vault.balance(context, other.address)).to.equal(amount)
+    })
+
+    it("can transfer part of a balance", async function () {
+      await vault.transfer(context, account.address, other.address, 10)
+      expect(await vault.balance(context, account.address)).to.equal(
+        amount - 10
+      )
+      expect(await vault.balance(context, other.address)).to.equal(10)
+    })
+
+    it("does not transfer more than the balance", async function () {
+      await expect(
+        vault.transfer(context, account.address, other.address, amount + 1)
+      ).to.be.revertedWith("InsufficientBalance")
+    })
+
+    it("can withdraw funds that were transfered in", async function () {
+      await vault.transfer(context, account.address, other.address, amount)
+      const before = await token.balanceOf(other.address)
+      await vault.withdraw(context, other.address)
+      const after = await token.balanceOf(other.address)
+      expect(after - before).to.equal(amount)
+    })
+
+    it("cannot withdraw funds that were transfered out", async function () {
+      await vault.transfer(context, account.address, other.address, amount)
+      const before = await token.balanceOf(account.address)
+      await vault.withdraw(context, account.address)
+      const after = await token.balanceOf(account.address)
+      expect(after).to.equal(before)
+    })
+  })
 })

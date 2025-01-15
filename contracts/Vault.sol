@@ -48,4 +48,21 @@ contract Vault {
     delete _available[controller][context][recipient];
     _token.safeTransfer(address(0xdead), amount);
   }
+
+  function transfer(
+    Context context,
+    Recipient from,
+    Recipient to,
+    uint256 amount
+  ) public {
+    Controller controller = Controller.wrap(msg.sender);
+    require(
+      amount <= _available[controller][context][from],
+      InsufficientBalance()
+    );
+    _available[controller][context][from] -= amount;
+    _available[controller][context][to] += amount;
+  }
+
+  error InsufficientBalance();
 }
