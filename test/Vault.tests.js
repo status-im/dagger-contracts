@@ -38,7 +38,7 @@ describe("Vault", function () {
       await expect(depositing).to.be.revertedWith("insufficient allowance")
     })
 
-    it("multiple deposits add to the balance", async function () {
+    it("adds multiple deposits to the balance", async function () {
       await token.connect(account).approve(vault.address, amount)
       await vault.deposit(context, account.address, amount / 2)
       await vault.deposit(context, account.address, amount / 2)
@@ -132,48 +132,136 @@ describe("Vault", function () {
     const context = randomBytes(32)
     const amount = 42
 
-    let other
+    let account2
+    let account3
 
     beforeEach(async function () {
-      ;[, , other] = await ethers.getSigners()
+      ;[, , account2, account3] = await ethers.getSigners()
       await token.connect(account).approve(vault.address, amount)
       await vault.deposit(context, account.address, amount)
     })
 
     it("can transfer tokens from one recipient to the other", async function () {
-      await vault.transfer(context, account.address, other.address, amount)
+      await vault.transfer(context, account.address, account2.address, amount)
       expect(await vault.balance(context, account.address)).to.equal(0)
-      expect(await vault.balance(context, other.address)).to.equal(amount)
+      expect(await vault.balance(context, account2.address)).to.equal(amount)
     })
 
     it("can transfer part of a balance", async function () {
-      await vault.transfer(context, account.address, other.address, 10)
+      await vault.transfer(context, account.address, account2.address, 10)
       expect(await vault.balance(context, account.address)).to.equal(
         amount - 10
       )
-      expect(await vault.balance(context, other.address)).to.equal(10)
+      expect(await vault.balance(context, account2.address)).to.equal(10)
     })
 
     it("does not transfer more than the balance", async function () {
       await expect(
-        vault.transfer(context, account.address, other.address, amount + 1)
+        vault.transfer(context, account.address, account2.address, amount + 1)
       ).to.be.revertedWith("InsufficientBalance")
     })
 
     it("can withdraw funds that were transfered in", async function () {
-      await vault.transfer(context, account.address, other.address, amount)
-      const before = await token.balanceOf(other.address)
-      await vault.withdraw(context, other.address)
-      const after = await token.balanceOf(other.address)
+      await vault.transfer(context, account.address, account2.address, amount)
+      const before = await token.balanceOf(account2.address)
+      await vault.withdraw(context, account2.address)
+      const after = await token.balanceOf(account2.address)
       expect(after - before).to.equal(amount)
     })
 
     it("cannot withdraw funds that were transfered out", async function () {
-      await vault.transfer(context, account.address, other.address, amount)
+      await vault.transfer(context, account.address, account2.address, amount)
       const before = await token.balanceOf(account.address)
       await vault.withdraw(context, account.address)
       const after = await token.balanceOf(account.address)
       expect(after).to.equal(before)
+    })
+
+    it("can transfer out funds that were transfered in", async function () {
+      await vault.transfer(context, account.address, account2.address, amount)
+      await vault.transfer(context, account2.address, account3.address, amount)
+      expect(await vault.balance(context, account2.address)).to.equal(0)
+      expect(await vault.balance(context, account3.address)).to.equal(amount)
+    })
+  })
+
+  describe("designating", async function () {
+    const context = randomBytes(32)
+    const amount = 42
+
+    let account2
+
+    beforeEach(async function () {
+      ;[, , account2] = await ethers.getSigners()
+      await token.connect(account).approve(vault.address, amount)
+      await vault.deposit(context, account.address, amount)
+    })
+
+    it("can designate tokens for a single recipient", async function () {
+      await vault.designate(context, account.address, amount)
+      expect(await vault.designated(context, account.address)).to.equal(amount)
+    })
+
+    it("can designate part of the balance", async function () {
+      await vault.designate(context, account.address, 10)
+      expect(await vault.designated(context, account.address)).to.equal(10)
+    })
+
+    it("adds up designated tokens", async function () {
+      await vault.designate(context, account.address, 10)
+      await vault.designate(context, account.address, 10)
+      expect(await vault.designated(context, account.address)).to.equal(20)
+    })
+
+    it("cannot designate more than the undesignated balance", async function () {
+      await vault.designate(context, account.address, amount)
+      await expect(
+        vault.designate(context, account.address, 1)
+      ).to.be.revertedWith("InsufficientBalance")
+    })
+
+    it("does not change the balance", async function () {
+      await vault.designate(context, account.address, 10)
+      expect(await vault.balance(context, account.address)).to.equal(amount)
+    })
+
+    it("does not allow designated tokens to be transfered", async function () {
+      await vault.designate(context, account.address, 1)
+      await expect(
+        vault.transfer(context, account.address, account2.address, amount)
+      ).to.be.revertedWith("InsufficientBalance")
+    })
+
+    it("allows designated tokens to be withdrawn", async function () {
+      await vault.designate(context, account.address, 10)
+      const before = await token.balanceOf(account.address)
+      await vault.withdraw(context, account.address)
+      const after = await token.balanceOf(account.address)
+      expect(after - before).to.equal(amount)
+    })
+
+    it("does not withdraw designated tokens more than once", async function () {
+      await vault.designate(context, account.address, 10)
+      await vault.withdraw(context, account.address)
+      const before = await token.balanceOf(account.address)
+      await vault.withdraw(context, account.address)
+      const after = await token.balanceOf(account.address)
+      expect(after).to.equal(before)
+    })
+
+    it("allows designated tokens to be burned", async function () {
+      await vault.designate(context, account.address, 10)
+      await vault.burn(context, account.address)
+      expect(await vault.balance(context, account.address)).to.equal(0)
+    })
+
+    it("moves burned designated tokens to address 0xdead", async function () {
+      const dead = "0x000000000000000000000000000000000000dead"
+      await vault.designate(context, account.address, 10)
+      const before = await token.balanceOf(dead)
+      await vault.burn(context, account.address)
+      const after = await token.balanceOf(dead)
+      expect(after - before).to.equal(amount)
     })
   })
 })

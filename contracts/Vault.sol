@@ -15,6 +15,8 @@ contract Vault {
 
   mapping(Controller => mapping(Context => mapping(Recipient => uint256)))
     private _available;
+  mapping(Controller => mapping(Context => mapping(Recipient => uint256)))
+    private _designated;
 
   constructor(IERC20 token) {
     _token = token;
@@ -25,7 +27,17 @@ contract Vault {
     Recipient recipient
   ) public view returns (uint256) {
     Controller controller = Controller.wrap(msg.sender);
-    return _available[controller][context][recipient];
+    return
+      _available[controller][context][recipient] +
+      _designated[controller][context][recipient];
+  }
+
+  function designated(
+    Context context,
+    Recipient recipient
+  ) public view returns (uint256) {
+    Controller controller = Controller.wrap(msg.sender);
+    return _designated[controller][context][recipient];
   }
 
   function deposit(Context context, address from, uint256 amount) public {
@@ -35,17 +47,21 @@ contract Vault {
     _token.safeTransferFrom(from, address(this), amount);
   }
 
-  function withdraw(Context context, Recipient recipient) public {
+  function _delete(Context context, Recipient recipient) private {
     Controller controller = Controller.wrap(msg.sender);
-    uint256 amount = _available[controller][context][recipient];
     delete _available[controller][context][recipient];
+    delete _designated[controller][context][recipient];
+  }
+
+  function withdraw(Context context, Recipient recipient) public {
+    uint256 amount = balance(context, recipient);
+    _delete(context, recipient);
     _token.safeTransfer(Recipient.unwrap(recipient), amount);
   }
 
   function burn(Context context, Recipient recipient) public {
-    Controller controller = Controller.wrap(msg.sender);
-    uint256 amount = _available[controller][context][recipient];
-    delete _available[controller][context][recipient];
+    uint256 amount = balance(context, recipient);
+    _delete(context, recipient);
     _token.safeTransfer(address(0xdead), amount);
   }
 
@@ -62,6 +78,20 @@ contract Vault {
     );
     _available[controller][context][from] -= amount;
     _available[controller][context][to] += amount;
+  }
+
+  function designate(
+    Context context,
+    Recipient recipient,
+    uint256 amount
+  ) public {
+    Controller controller = Controller.wrap(msg.sender);
+    require(
+      amount <= _available[controller][context][recipient],
+      InsufficientBalance()
+    );
+    _available[controller][context][recipient] -= amount;
+    _designated[controller][context][recipient] += amount;
   }
 
   error InsufficientBalance();
