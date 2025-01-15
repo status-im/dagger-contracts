@@ -3,8 +3,10 @@ pragma solidity 0.8.28;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "./Timestamps.sol";
 
 using SafeERC20 for IERC20;
+using Timestamps for Timestamp;
 
 contract Vault {
   IERC20 private immutable _token;
@@ -13,6 +15,12 @@ contract Vault {
   type Context is bytes32;
   type Recipient is address;
 
+  struct Lock {
+    Timestamp expiry;
+    Timestamp maximum;
+  }
+
+  mapping(Controller => mapping(Context => Lock)) private _locks;
   mapping(Controller => mapping(Context => mapping(Recipient => uint256)))
     private _available;
   mapping(Controller => mapping(Context => mapping(Recipient => uint256)))
@@ -40,6 +48,11 @@ contract Vault {
     return _designated[controller][context][recipient];
   }
 
+  function lock(Context context) public view returns (Lock memory) {
+    Controller controller = Controller.wrap(msg.sender);
+    return _locks[controller][context];
+  }
+
   function deposit(Context context, address from, uint256 amount) public {
     Controller controller = Controller.wrap(msg.sender);
     Recipient recipient = Recipient.wrap(from);
@@ -54,6 +67,7 @@ contract Vault {
   }
 
   function withdraw(Context context, Recipient recipient) public {
+    require(!lock(context).expiry.isFuture(), Locked());
     uint256 amount = balance(context, recipient);
     _delete(context, recipient);
     _token.safeTransfer(Recipient.unwrap(recipient), amount);
@@ -94,5 +108,26 @@ contract Vault {
     _designated[controller][context][recipient] += amount;
   }
 
+  function lockup(Context context, Timestamp expiry, Timestamp maximum) public {
+    require(Timestamp.unwrap(lock(context).maximum) == 0, AlreadyLocked());
+    require(!expiry.isAfter(maximum), ExpiryPastMaximum());
+    Controller controller = Controller.wrap(msg.sender);
+    _locks[controller][context] = Lock({expiry: expiry, maximum: maximum});
+  }
+
+  function extend(Context context, Timestamp expiry) public {
+    Lock memory previous = lock(context);
+    require(previous.expiry.isFuture(), LockExpired());
+    require(!previous.expiry.isAfter(expiry), InvalidExpiry());
+    require(!expiry.isAfter(previous.maximum), ExpiryPastMaximum());
+    Controller controller = Controller.wrap(msg.sender);
+    _locks[controller][context].expiry = expiry;
+  }
+
   error InsufficientBalance();
+  error Locked();
+  error AlreadyLocked();
+  error ExpiryPastMaximum();
+  error InvalidExpiry();
+  error LockExpired();
 }

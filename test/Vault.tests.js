@@ -1,6 +1,7 @@
 const { expect } = require("chai")
 const { ethers } = require("hardhat")
 const { randomBytes } = ethers.utils
+const { currentTime, advanceTimeToForNextBlock } = require("./evm")
 
 describe("Vault", function () {
   let token
@@ -262,6 +263,101 @@ describe("Vault", function () {
       await vault.burn(context, account.address)
       const after = await token.balanceOf(dead)
       expect(after - before).to.equal(amount)
+    })
+  })
+
+  describe("locking", async function () {
+    const context = randomBytes(32)
+    const amount = 42
+
+    beforeEach(async function () {
+      await token.connect(account).approve(vault.address, amount)
+      await vault.deposit(context, account.address, amount)
+    })
+
+    it("can lock up all tokens in a context", async function () {
+      let start = await currentTime()
+      let expiry = start + 10
+      let maximum = start + 20
+      await vault.lockup(context, expiry, maximum)
+      expect((await vault.lock(context))[0]).to.equal(expiry)
+      expect((await vault.lock(context))[1]).to.equal(maximum)
+    })
+
+    it("cannot lock up when already locked", async function () {
+      let start = await currentTime()
+      let expiry = start + 10
+      let maximum = start + 20
+      await vault.lockup(context, expiry, maximum)
+      const locking = vault.lockup(context, expiry, maximum)
+      await expect(locking).to.be.revertedWith("AlreadyLocked")
+    })
+
+    it("cannot lock when expiry is past maximum", async function () {
+      let start = await currentTime()
+      let expiry = start + 10
+      let maximum = start + 9
+      const locking = vault.lockup(context, expiry, maximum)
+      await expect(locking).to.be.revertedWith("ExpiryPastMaximum")
+    })
+
+    it("does not allow withdrawal before lock expires", async function () {
+      let start = await currentTime()
+      let expiry = start + 10
+      await vault.lockup(context, expiry, expiry)
+      await advanceTimeToForNextBlock(expiry - 1)
+      const withdrawing = vault.withdraw(context, account.address)
+      await expect(withdrawing).to.be.revertedWith("Locked")
+    })
+
+    it("allows withdrawal after lock expires", async function () {
+      let start = await currentTime()
+      let expiry = start + 10
+      await vault.lockup(context, expiry, expiry)
+      await advanceTimeToForNextBlock(expiry)
+      const before = await token.balanceOf(account.address)
+      await vault.withdraw(context, account.address)
+      const after = await token.balanceOf(account.address)
+      expect(after - before).to.equal(amount)
+    })
+
+    it("can extend a lock expiry up to its maximum", async function () {
+      let start = await currentTime()
+      let expiry = start + 10
+      let maximum = start + 20
+      await vault.lockup(context, expiry, maximum)
+      await vault.extend(context, start + 15)
+      expect((await vault.lock(context))[0]).to.equal(start + 15)
+      await vault.extend(context, start + 20)
+      expect((await vault.lock(context))[0]).to.equal(start + 20)
+    })
+
+    it("cannot extend a lock past its maximum", async function () {
+      let start = await currentTime()
+      let expiry = start + 10
+      let maximum = start + 20
+      await vault.lockup(context, expiry, maximum)
+      const extending = vault.extend(context, start + 21)
+      await expect(extending).to.be.revertedWith("ExpiryPastMaximum")
+    })
+
+    it("cannot move expiry forward", async function () {
+      let start = await currentTime()
+      let expiry = start + 10
+      let maximum = start + 20
+      await vault.lockup(context, expiry, maximum)
+      const extending = vault.extend(context, start + 9)
+      await expect(extending).to.be.revertedWith("InvalidExpiry")
+    })
+
+    it("cannot extend an expired lock", async function () {
+      let start = await currentTime()
+      let expiry = start + 10
+      let maximum = start + 20
+      await vault.lockup(context, expiry, maximum)
+      await advanceTimeToForNextBlock(expiry)
+      const extending = vault.extend(context, maximum)
+      await expect(extending).to.be.revertedWith("LockExpired")
     })
   })
 })
