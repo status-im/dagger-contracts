@@ -301,6 +301,25 @@ describe("Vault", function () {
       await expect(withdrawing).to.be.revertedWith("Locked")
     })
 
+    it("locks withdrawal for all recipients in a context", async function () {
+      await vault.lockup(context, expiry, expiry)
+      const address1 = account.address
+      const address2 = account2.address
+      await vault.transfer(context, address1, address2, amount / 2)
+      let withdrawing1 = vault.withdraw(context, address1)
+      let withdrawing2 = vault.withdraw(context, address2)
+      await expect(withdrawing1).to.be.revertedWith("Locked")
+      await expect(withdrawing2).to.be.revertedWith("Locked")
+    })
+
+    it("locks withdrawal for newly deposited tokens", async function () {
+      await vault.lockup(context, expiry, expiry)
+      await token.connect(account2).approve(vault.address, amount)
+      await vault.deposit(context, account2.address, amount)
+      const withdrawing = vault.withdraw(context, account2.address)
+      await expect(withdrawing).to.be.revertedWith("Locked")
+    })
+
     it("allows withdrawal after lock expires", async function () {
       await vault.lockup(context, expiry, expiry)
       await advanceTimeToForNextBlock(expiry)
@@ -335,6 +354,12 @@ describe("Vault", function () {
       await advanceTimeToForNextBlock(expiry)
       const extending = vault.extend(context, maximum)
       await expect(extending).to.be.revertedWith("LockExpired")
+    })
+
+    it("allows locked tokens to be burned", async function () {
+      await vault.lockup(context, expiry, expiry)
+      await vault.burn(context, account.address)
+      expect(await vault.balance(context, account.address)).to.equal(0)
     })
 
     it("deletes lock when funds are withdrawn", async function () {
