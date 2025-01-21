@@ -359,5 +359,15 @@ describe("Vault", function () {
       const extending = vault.extend(context, maximum)
       await expect(extending).to.be.revertedWith("LockExpired")
     })
+
+    it("deletes lock when funds are withdrawn", async function () {
+      let start = await currentTime()
+      let expiry = start + 10
+      await vault.lockup(context, expiry, expiry)
+      await advanceTimeToForNextBlock(expiry)
+      await vault.withdraw(context, account.address)
+      expect((await vault.lock(context))[0]).to.equal(0)
+      expect((await vault.lock(context))[1]).to.equal(0)
+    })
   })
 })

@@ -67,7 +67,9 @@ contract Vault {
   }
 
   function withdraw(Context context, Recipient recipient) public {
+    Controller controller = Controller.wrap(msg.sender);
     require(!lock(context).expiry.isFuture(), Locked());
+    delete _locks[controller][context];
     uint256 amount = balance(context, recipient);
     _delete(context, recipient);
     _token.safeTransfer(Recipient.unwrap(recipient), amount);
