@@ -6,15 +6,17 @@ const { currentTime, advanceTimeToForNextBlock } = require("./evm")
 describe("Vault", function () {
   let token
   let vault
-  let account
+  let account, account2, account3
 
   beforeEach(async function () {
     const TestToken = await ethers.getContractFactory("TestToken")
     token = await TestToken.deploy()
     const Vault = await ethers.getContractFactory("Vault")
     vault = await Vault.deploy(token.address)
-    ;[, account] = await ethers.getSigners()
+    ;[, account, account2, account3] = await ethers.getSigners()
     await token.mint(account.address, 1_000_000)
+    await token.mint(account2.address, 1_000_000)
+    await token.mint(account3.address, 1_000_000)
   })
 
   describe("depositing", function () {
@@ -133,11 +135,7 @@ describe("Vault", function () {
     const context = randomBytes(32)
     const amount = 42
 
-    let account2
-    let account3
-
     beforeEach(async function () {
-      ;[, , account2, account3] = await ethers.getSigners()
       await token.connect(account).approve(vault.address, amount)
       await vault.deposit(context, account.address, amount)
     })
@@ -189,8 +187,6 @@ describe("Vault", function () {
   describe("designating", async function () {
     const context = randomBytes(32)
     const amount = 42
-
-    let account2
 
     beforeEach(async function () {
       ;[, , account2] = await ethers.getSigners()
