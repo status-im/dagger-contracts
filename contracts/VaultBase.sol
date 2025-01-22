@@ -4,11 +4,10 @@ pragma solidity 0.8.28;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./Timestamps.sol";
-import "./TokenFlows.sol";
+import "./TokensPerSecond.sol";
 
 using SafeERC20 for IERC20;
 using Timestamps for Timestamp;
-using TokenFlows for TokensPerSecond;
 
 abstract contract VaultBase {
   IERC20 internal immutable _token;
@@ -49,13 +48,24 @@ abstract contract VaultBase {
   ) internal view returns (Balance memory) {
     Balance memory balance = _balances[controller][context][recipient];
     Flow memory flow = _flows[controller][context][recipient];
-    int256 flowed = flow.rate.accumulated(flow.start, Timestamps.currentTime());
-    if (flowed >= 0) {
-      balance.designated += uint256(flowed);
+    int256 accumulated = _accumulate(flow, Timestamps.currentTime());
+    if (accumulated >= 0) {
+      balance.designated += uint256(accumulated);
     } else {
-      balance.available -= uint256(-flowed);
+      balance.available -= uint256(-accumulated);
     }
     return balance;
+  }
+
+  function _accumulate(
+    Flow memory flow,
+    Timestamp end
+  ) private pure returns (int256) {
+    if (TokensPerSecond.unwrap(flow.rate) == 0) {
+      return 0;
+    }
+    uint64 duration = Timestamp.unwrap(end) - Timestamp.unwrap(flow.start);
+    return TokensPerSecond.unwrap(flow.rate) * int256(uint256(duration));
   }
 
   function _getLock(
