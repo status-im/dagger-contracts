@@ -6,6 +6,7 @@ const { currentTime, advanceTimeToForNextBlock } = require("./evm")
 describe("Vault", function () {
   let token
   let vault
+  let controller
   let account, account2, account3
 
   beforeEach(async function () {
@@ -13,7 +14,7 @@ describe("Vault", function () {
     token = await TestToken.deploy()
     const Vault = await ethers.getContractFactory("Vault")
     vault = await Vault.deploy(token.address)
-    ;[, account, account2, account3] = await ethers.getSigners()
+    ;[controller, account, account2, account3] = await ethers.getSigners()
     await token.mint(account.address, 1_000_000)
     await token.mint(account2.address, 1_000_000)
     await token.mint(account3.address, 1_000_000)
@@ -79,9 +80,18 @@ describe("Vault", function () {
       await vault.deposit(context, account.address, amount)
     })
 
-    it("can withdraw a deposit", async function () {
+    it("allows controller to withdraw for a recipient", async function () {
       const before = await token.balanceOf(account.address)
       await vault.withdraw(context, account.address)
+      const after = await token.balanceOf(account.address)
+      expect(after - before).to.equal(amount)
+    })
+
+    it("allows recipient to withdraw for itself", async function () {
+      const before = await token.balanceOf(account.address)
+      await vault
+        .connect(account)
+        .withdrawByRecipient(controller.address, context)
       const after = await token.balanceOf(account.address)
       expect(after - before).to.equal(amount)
     })
