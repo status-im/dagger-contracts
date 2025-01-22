@@ -76,4 +76,14 @@ contract Vault is VaultBase {
     Controller controller = Controller.wrap(msg.sender);
     _extendLock(controller, context, expiry);
   }
+
+  function flow(
+    Context context,
+    Recipient from,
+    Recipient to,
+    TokensPerSecond rate
+  ) public {
+    Controller controller = Controller.wrap(msg.sender);
+    _flow(controller, context, from, to, rate);
+  }
 }

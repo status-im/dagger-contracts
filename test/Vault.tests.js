@@ -1,7 +1,7 @@
 const { expect } = require("chai")
 const { ethers } = require("hardhat")
 const { randomBytes } = ethers.utils
-const { currentTime, advanceTimeToForNextBlock } = require("./evm")
+const { currentTime, advanceTimeToForNextBlock, mine } = require("./evm")
 
 describe("Vault", function () {
   let token
@@ -378,6 +378,32 @@ describe("Vault", function () {
       await vault.withdraw(context, account.address)
       expect((await vault.lock(context))[0]).to.equal(0)
       expect((await vault.lock(context))[1]).to.equal(0)
+    })
+  })
+
+  describe("flow", function () {
+    const context = randomBytes(32)
+    const amount = 42
+
+    beforeEach(async function () {
+      await token.connect(account).approve(vault.address, amount)
+      await vault.deposit(context, account.address, amount)
+    })
+
+    async function advanceTimeTo(timestamp) {
+      await advanceTimeToForNextBlock(timestamp)
+      await mine()
+    }
+
+    it("moves tokens over time", async function () {
+      await vault.flow(context, account.address, account2.address, 2)
+      const start = await currentTime()
+      await advanceTimeTo(start + 2)
+      expect(await vault.balance(context, account.address)).to.equal(amount - 4)
+      expect(await vault.balance(context, account2.address)).to.equal(4)
+      await advanceTimeTo(start + 4)
+      expect(await vault.balance(context, account.address)).to.equal(amount - 8)
+      expect(await vault.balance(context, account2.address)).to.equal(8)
     })
   })
 })

@@ -4,9 +4,11 @@ pragma solidity 0.8.28;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./Timestamps.sol";
+import "./TokenFlows.sol";
 
 using SafeERC20 for IERC20;
 using Timestamps for Timestamp;
+using TokenFlows for TokensPerSecond;
 
 abstract contract VaultBase {
   IERC20 internal immutable _token;
@@ -20,11 +22,18 @@ abstract contract VaultBase {
     Timestamp maximum;
   }
 
+  struct Flow {
+    Timestamp start;
+    TokensPerSecond rate;
+  }
+
   mapping(Controller => mapping(Context => Lock)) private _locks;
   mapping(Controller => mapping(Context => mapping(Recipient => uint256)))
     private _available;
   mapping(Controller => mapping(Context => mapping(Recipient => uint256)))
     private _designated;
+  mapping(Controller => mapping(Context => mapping(Recipient => Flow)))
+    private _flows;
 
   constructor(IERC20 token) {
     _token = token;
@@ -35,9 +44,15 @@ abstract contract VaultBase {
     Context context,
     Recipient recipient
   ) internal view returns (uint256) {
-    return
-      _available[controller][context][recipient] +
-      _designated[controller][context][recipient];
+    Flow memory flow = _flows[controller][context][recipient];
+    int256 flowed = flow.rate.accumulated(flow.start, Timestamps.currentTime());
+    uint256 available = _available[controller][context][recipient];
+    uint256 designated = _designated[controller][context][recipient];
+    if (flowed >= 0) {
+      return available + designated + uint256(flowed);
+    } else {
+      return available + designated - uint256(-flowed);
+    }
   }
 
   function _getDesignated(
@@ -150,6 +165,18 @@ abstract contract VaultBase {
     require(!previous.expiry.isAfter(expiry), InvalidExpiry());
     require(!expiry.isAfter(previous.maximum), ExpiryPastMaximum());
     _locks[controller][context].expiry = expiry;
+  }
+
+  function _flow(
+    Controller controller,
+    Context context,
+    Recipient from,
+    Recipient to,
+    TokensPerSecond rate
+  ) internal {
+    Timestamp start = Timestamps.currentTime();
+    _flows[controller][context][to] = Flow({start: start, rate: rate});
+    _flows[controller][context][from] = Flow({start: start, rate: -rate});
   }
 
   error InsufficientBalance();
