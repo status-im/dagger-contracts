@@ -405,5 +405,12 @@ describe("Vault", function () {
       expect(await vault.balance(context, account.address)).to.equal(amount - 8)
       expect(await vault.balance(context, account2.address)).to.equal(8)
     })
+
+    it("designates tokens that flow for the recipient", async function () {
+      await vault.flow(context, account.address, account2.address, 3)
+      const start = await currentTime()
+      await advanceTimeTo(start + 7)
+      expect(await vault.designated(context, account2.address)).to.equal(21)
+    })
   })
 })

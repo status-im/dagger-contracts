@@ -12,7 +12,8 @@ contract Vault is VaultBase {
     Recipient recipient
   ) public view returns (uint256) {
     Controller controller = Controller.wrap(msg.sender);
-    return _getBalance(controller, context, recipient);
+    Balance memory b = _getBalance(controller, context, recipient);
+    return b.available + b.designated;
   }
 
   function designated(
@@ -20,7 +21,8 @@ contract Vault is VaultBase {
     Recipient recipient
   ) public view returns (uint256) {
     Controller controller = Controller.wrap(msg.sender);
-    return _getDesignated(controller, context, recipient);
+    Balance memory b = _getBalance(controller, context, recipient);
+    return b.designated;
   }
 
   function lock(Context context) public view returns (Lock memory) {

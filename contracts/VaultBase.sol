@@ -17,6 +17,11 @@ abstract contract VaultBase {
   type Context is bytes32;
   type Recipient is address;
 
+  struct Balance {
+    uint256 available;
+    uint256 designated;
+  }
+
   struct Lock {
     Timestamp expiry;
     Timestamp maximum;
@@ -28,10 +33,8 @@ abstract contract VaultBase {
   }
 
   mapping(Controller => mapping(Context => Lock)) private _locks;
-  mapping(Controller => mapping(Context => mapping(Recipient => uint256)))
-    private _available;
-  mapping(Controller => mapping(Context => mapping(Recipient => uint256)))
-    private _designated;
+  mapping(Controller => mapping(Context => mapping(Recipient => Balance)))
+    private _balances;
   mapping(Controller => mapping(Context => mapping(Recipient => Flow)))
     private _flows;
 
@@ -43,24 +46,16 @@ abstract contract VaultBase {
     Controller controller,
     Context context,
     Recipient recipient
-  ) internal view returns (uint256) {
+  ) internal view returns (Balance memory) {
+    Balance memory balance = _balances[controller][context][recipient];
     Flow memory flow = _flows[controller][context][recipient];
     int256 flowed = flow.rate.accumulated(flow.start, Timestamps.currentTime());
-    uint256 available = _available[controller][context][recipient];
-    uint256 designated = _designated[controller][context][recipient];
     if (flowed >= 0) {
-      return available + designated + uint256(flowed);
+      balance.designated += uint256(flowed);
     } else {
-      return available + designated - uint256(-flowed);
+      balance.available -= uint256(-flowed);
     }
-  }
-
-  function _getDesignated(
-    Controller controller,
-    Context context,
-    Recipient recipient
-  ) internal view returns (uint256) {
-    return _designated[controller][context][recipient];
+    return balance;
   }
 
   function _getLock(
@@ -77,7 +72,7 @@ abstract contract VaultBase {
     uint256 amount
   ) internal {
     Recipient recipient = Recipient.wrap(from);
-    _available[controller][context][recipient] += amount;
+    _balances[controller][context][recipient].available += amount;
     _token.safeTransferFrom(from, address(this), amount);
   }
 
@@ -86,8 +81,7 @@ abstract contract VaultBase {
     Context context,
     Recipient recipient
   ) private {
-    delete _available[controller][context][recipient];
-    delete _designated[controller][context][recipient];
+    delete _balances[controller][context][recipient];
   }
 
   function _withdraw(
@@ -97,7 +91,8 @@ abstract contract VaultBase {
   ) internal {
     require(!_getLock(controller, context).expiry.isFuture(), Locked());
     delete _locks[controller][context];
-    uint256 amount = _getBalance(controller, context, recipient);
+    Balance memory balance = _getBalance(controller, context, recipient);
+    uint256 amount = balance.available + balance.designated;
     _delete(controller, context, recipient);
     _token.safeTransfer(Recipient.unwrap(recipient), amount);
   }
@@ -107,7 +102,8 @@ abstract contract VaultBase {
     Context context,
     Recipient recipient
   ) internal {
-    uint256 amount = _getBalance(controller, context, recipient);
+    Balance memory balance = _getBalance(controller, context, recipient);
+    uint256 amount = balance.available + balance.designated;
     _delete(controller, context, recipient);
     _token.safeTransfer(address(0xdead), amount);
   }
@@ -120,11 +116,11 @@ abstract contract VaultBase {
     uint256 amount
   ) internal {
     require(
-      amount <= _available[controller][context][from],
+      amount <= _balances[controller][context][from].available,
       InsufficientBalance()
     );
-    _available[controller][context][from] -= amount;
-    _available[controller][context][to] += amount;
+    _balances[controller][context][from].available -= amount;
+    _balances[controller][context][to].available += amount;
   }
 
   function _designate(
@@ -133,12 +129,10 @@ abstract contract VaultBase {
     Recipient recipient,
     uint256 amount
   ) internal {
-    require(
-      amount <= _available[controller][context][recipient],
-      InsufficientBalance()
-    );
-    _available[controller][context][recipient] -= amount;
-    _designated[controller][context][recipient] += amount;
+    Balance storage balance = _balances[controller][context][recipient];
+    require(amount <= balance.available, InsufficientBalance());
+    balance.available -= amount;
+    balance.designated += amount;
   }
 
   function _lockup(
