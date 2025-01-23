@@ -47,8 +47,7 @@ abstract contract VaultBase {
     Recipient recipient
   ) internal view returns (Balance memory) {
     Balance memory balance = _balances[controller][context][recipient];
-    Flow memory flow = _flows[controller][context][recipient];
-    int256 accumulated = _accumulate(flow, Timestamps.currentTime());
+    int256 accumulated = _accumulateFlow(controller, context, recipient);
     if (accumulated >= 0) {
       balance.designated += uint256(accumulated);
     } else {
@@ -57,14 +56,18 @@ abstract contract VaultBase {
     return balance;
   }
 
-  function _accumulate(
-    Flow memory flow,
-    Timestamp end
-  ) private pure returns (int256) {
-    if (TokensPerSecond.unwrap(flow.rate) == 0) {
+  function _accumulateFlow(
+    Controller controller,
+    Context context,
+    Recipient recipient
+  ) private view returns (int256) {
+    Flow memory flow = _flows[controller][context][recipient];
+    if (flow.rate == TokensPerSecond.wrap(0)) {
       return 0;
     }
-    uint64 duration = Timestamp.unwrap(end) - Timestamp.unwrap(flow.start);
+    Timestamp expiry = _getLock(controller, context).expiry;
+    Timestamp flowEnd = Timestamps.earliest(Timestamps.currentTime(), expiry);
+    uint64 duration = Timestamp.unwrap(flowEnd) - Timestamp.unwrap(flow.start);
     return TokensPerSecond.unwrap(flow.rate) * int256(uint256(duration));
   }
 
@@ -99,7 +102,10 @@ abstract contract VaultBase {
     Context context,
     Recipient recipient
   ) internal {
-    require(_getLock(controller, context).expiry <= Timestamps.currentTime(), Locked());
+    require(
+      _getLock(controller, context).expiry <= Timestamps.currentTime(),
+      Locked()
+    );
     delete _locks[controller][context];
     Balance memory balance = _getBalance(controller, context, recipient);
     uint256 amount = balance.available + balance.designated;
@@ -178,6 +184,10 @@ abstract contract VaultBase {
     Recipient to,
     TokensPerSecond rate
   ) internal {
+    require(
+      _getLock(controller, context).expiry != Timestamp.wrap(0),
+      LockRequired()
+    );
     Timestamp start = Timestamps.currentTime();
     _flows[controller][context][to] = Flow({start: start, rate: rate});
     _flows[controller][context][from] = Flow({start: start, rate: -rate});
@@ -189,4 +199,5 @@ abstract contract VaultBase {
   error ExpiryPastMaximum();
   error InvalidExpiry();
   error LockExpired();
+  error LockRequired();
 }

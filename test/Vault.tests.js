@@ -385,9 +385,14 @@ describe("Vault", function () {
     const context = randomBytes(32)
     const amount = 42
 
+    let sender
+    let receiver
+
     beforeEach(async function () {
       await token.connect(account).approve(vault.address, amount)
       await vault.deposit(context, account.address, amount)
+      sender = account.address
+      receiver = account2.address
     })
 
     async function advanceTimeTo(timestamp) {
@@ -395,22 +400,49 @@ describe("Vault", function () {
       await mine()
     }
 
-    it("moves tokens over time", async function () {
-      await vault.flow(context, account.address, account2.address, 2)
-      const start = await currentTime()
-      await advanceTimeTo(start + 2)
-      expect(await vault.balance(context, account.address)).to.equal(amount - 4)
-      expect(await vault.balance(context, account2.address)).to.equal(4)
-      await advanceTimeTo(start + 4)
-      expect(await vault.balance(context, account.address)).to.equal(amount - 8)
-      expect(await vault.balance(context, account2.address)).to.equal(8)
+    it("requires that a lock is set", async function () {
+      await expect(vault.flow(context, sender, receiver, 2)).to.be.revertedWith(
+        "LockRequired"
+      )
     })
 
-    it("designates tokens that flow for the recipient", async function () {
-      await vault.flow(context, account.address, account2.address, 3)
-      const start = await currentTime()
-      await advanceTimeTo(start + 7)
-      expect(await vault.designated(context, account2.address)).to.equal(21)
+    describe("when a lock is set", async function () {
+      let expiry
+
+      beforeEach(async function () {
+        expiry = (await currentTime()) + 20
+        await vault.lockup(context, expiry, expiry)
+      })
+
+      it("moves tokens over time", async function () {
+        await vault.flow(context, sender, receiver, 2)
+        const start = await currentTime()
+        await advanceTimeTo(start + 2)
+        expect(await vault.balance(context, sender)).to.equal(amount - 4)
+        expect(await vault.balance(context, receiver)).to.equal(4)
+        await advanceTimeTo(start + 4)
+        expect(await vault.balance(context, sender)).to.equal(amount - 8)
+        expect(await vault.balance(context, receiver)).to.equal(8)
+      })
+
+      it("designates tokens that flow for the recipient", async function () {
+        await vault.flow(context, sender, receiver, 3)
+        const start = await currentTime()
+        await advanceTimeTo(start + 7)
+        expect(await vault.designated(context, receiver)).to.equal(21)
+      })
+
+      it("stops flowing when lock expires", async function () {
+        await vault.flow(context, sender, receiver, 2)
+        const start = await currentTime()
+        await advanceTimeTo(expiry)
+        const total = (expiry - start) * 2
+        expect(await vault.balance(context, sender)).to.equal(amount - total)
+        expect(await vault.balance(context, receiver)).to.equal(total)
+        await advanceTimeTo(expiry + 10)
+        expect(await vault.balance(context, sender)).to.equal(amount - total)
+        expect(await vault.balance(context, receiver)).to.equal(total)
+      })
     })
   })
 })
