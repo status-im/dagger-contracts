@@ -99,7 +99,7 @@ abstract contract VaultBase {
     Context context,
     Recipient recipient
   ) internal {
-    require(!_getLock(controller, context).expiry.isFuture(), Locked());
+    require(_getLock(controller, context).expiry <= Timestamps.currentTime(), Locked());
     delete _locks[controller][context];
     Balance memory balance = _getBalance(controller, context, recipient);
     uint256 amount = balance.available + balance.designated;
@@ -155,7 +155,7 @@ abstract contract VaultBase {
       Timestamp.unwrap(_getLock(controller, context).maximum) == 0,
       AlreadyLocked()
     );
-    require(!expiry.isAfter(maximum), ExpiryPastMaximum());
+    require(expiry <= maximum, ExpiryPastMaximum());
     _locks[controller][context] = Lock({expiry: expiry, maximum: maximum});
   }
 
@@ -165,9 +165,9 @@ abstract contract VaultBase {
     Timestamp expiry
   ) internal {
     Lock memory previous = _getLock(controller, context);
-    require(previous.expiry.isFuture(), LockExpired());
-    require(!previous.expiry.isAfter(expiry), InvalidExpiry());
-    require(!expiry.isAfter(previous.maximum), ExpiryPastMaximum());
+    require(Timestamps.currentTime() < previous.expiry, LockExpired());
+    require(previous.expiry <= expiry, InvalidExpiry());
+    require(expiry <= previous.maximum, ExpiryPastMaximum());
     _locks[controller][context].expiry = expiry;
   }
 
