@@ -157,10 +157,8 @@ abstract contract VaultBase {
     Timestamp expiry,
     Timestamp maximum
   ) internal {
-    require(
-      Timestamp.unwrap(_getLock(controller, context).maximum) == 0,
-      AlreadyLocked()
-    );
+    Lock memory existing = _getLock(controller, context);
+    require(existing.maximum == Timestamp.wrap(0), AlreadyLocked());
     require(expiry <= maximum, ExpiryPastMaximum());
     _locks[controller][context] = Lock({expiry: expiry, maximum: maximum});
   }
@@ -170,10 +168,10 @@ abstract contract VaultBase {
     Context context,
     Timestamp expiry
   ) internal {
-    Lock memory previous = _getLock(controller, context);
-    require(Timestamps.currentTime() < previous.expiry, LockExpired());
-    require(previous.expiry <= expiry, InvalidExpiry());
-    require(expiry <= previous.maximum, ExpiryPastMaximum());
+    Lock memory existing = _getLock(controller, context);
+    require(Timestamps.currentTime() < existing.expiry, LockExpired());
+    require(existing.expiry <= expiry, InvalidExpiry());
+    require(expiry <= existing.maximum, ExpiryPastMaximum());
     _locks[controller][context].expiry = expiry;
   }
 
@@ -185,8 +183,9 @@ abstract contract VaultBase {
     TokensPerSecond rate
   ) internal {
     Lock memory lock = _getLock(controller, context);
-    require(lock.expiry != Timestamp.wrap(0), LockRequired());
     Timestamp start = Timestamps.currentTime();
+    require(lock.expiry != Timestamp.wrap(0), LockRequired());
+    require(start < lock.expiry, LockExpired());
     uint64 duration = Timestamp.unwrap(lock.maximum) - Timestamp.unwrap(start);
     int256 total = int256(uint256(duration)) * TokensPerSecond.unwrap(rate);
     Balance memory balance = _getBalance(controller, context, from);

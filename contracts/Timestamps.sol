@@ -3,19 +3,24 @@ pragma solidity 0.8.28;
 
 type Timestamp is uint64;
 
-using {_notEquals as !=} for Timestamp global;
-using {_lessThan as <} for Timestamp global;
-using {_atMost as <=} for Timestamp global;
+using {_timestampEquals as ==} for Timestamp global;
+using {_timestampNotEqual as !=} for Timestamp global;
+using {_timestampLessThan as <} for Timestamp global;
+using {_timestampAtMost as <=} for Timestamp global;
 
-function _notEquals(Timestamp a, Timestamp b) pure returns (bool) {
+function _timestampEquals(Timestamp a, Timestamp b) pure returns (bool) {
+  return Timestamp.unwrap(a) == Timestamp.unwrap(b);
+}
+
+function _timestampNotEqual(Timestamp a, Timestamp b) pure returns (bool) {
   return Timestamp.unwrap(a) != Timestamp.unwrap(b);
 }
 
-function _lessThan(Timestamp a, Timestamp b) pure returns (bool) {
+function _timestampLessThan(Timestamp a, Timestamp b) pure returns (bool) {
   return Timestamp.unwrap(a) < Timestamp.unwrap(b);
 }
 
-function _atMost(Timestamp a, Timestamp b) pure returns (bool) {
+function _timestampAtMost(Timestamp a, Timestamp b) pure returns (bool) {
   return Timestamp.unwrap(a) <= Timestamp.unwrap(b);
 }
 

@@ -406,6 +406,15 @@ describe("Vault", function () {
       )
     })
 
+    it("requires that the lock is not expired", async function () {
+      let expiry = (await currentTime()) + 20
+      await vault.lockup(context, expiry, expiry)
+      await advanceTimeTo(expiry)
+      await expect(vault.flow(context, sender, receiver, 2)).to.be.revertedWith(
+        "LockExpired"
+      )
+    })
+
     describe("when a lock is set", async function () {
       let expiry
       let maximum
