@@ -184,11 +184,13 @@ abstract contract VaultBase {
     Recipient to,
     TokensPerSecond rate
   ) internal {
-    require(
-      _getLock(controller, context).expiry != Timestamp.wrap(0),
-      LockRequired()
-    );
+    Lock memory lock = _getLock(controller, context);
+    require(lock.expiry != Timestamp.wrap(0), LockRequired());
     Timestamp start = Timestamps.currentTime();
+    uint64 duration = Timestamp.unwrap(lock.maximum) - Timestamp.unwrap(start);
+    int256 total = int256(uint256(duration)) * TokensPerSecond.unwrap(rate);
+    Balance memory balance = _getBalance(controller, context, from);
+    require(total <= int256(balance.available), InsufficientBalance());
     _flows[controller][context][to] = Flow({start: start, rate: rate});
     _flows[controller][context][from] = Flow({start: start, rate: -rate});
   }

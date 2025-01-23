@@ -383,14 +383,14 @@ describe("Vault", function () {
 
   describe("flow", function () {
     const context = randomBytes(32)
-    const amount = 42
+    const deposit = 100
 
     let sender
     let receiver
 
     beforeEach(async function () {
-      await token.connect(account).approve(vault.address, amount)
-      await vault.deposit(context, account.address, amount)
+      await token.connect(account).approve(vault.address, deposit)
+      await vault.deposit(context, account.address, deposit)
       sender = account.address
       receiver = account2.address
     })
@@ -408,20 +408,22 @@ describe("Vault", function () {
 
     describe("when a lock is set", async function () {
       let expiry
+      let maximum
 
       beforeEach(async function () {
         expiry = (await currentTime()) + 20
-        await vault.lockup(context, expiry, expiry)
+        maximum = expiry + 10
+        await vault.lockup(context, expiry, maximum)
       })
 
       it("moves tokens over time", async function () {
         await vault.flow(context, sender, receiver, 2)
         const start = await currentTime()
         await advanceTimeTo(start + 2)
-        expect(await vault.balance(context, sender)).to.equal(amount - 4)
+        expect(await vault.balance(context, sender)).to.equal(deposit - 4)
         expect(await vault.balance(context, receiver)).to.equal(4)
         await advanceTimeTo(start + 4)
-        expect(await vault.balance(context, sender)).to.equal(amount - 8)
+        expect(await vault.balance(context, sender)).to.equal(deposit - 8)
         expect(await vault.balance(context, receiver)).to.equal(8)
       })
 
@@ -437,11 +439,32 @@ describe("Vault", function () {
         const start = await currentTime()
         await advanceTimeTo(expiry)
         const total = (expiry - start) * 2
-        expect(await vault.balance(context, sender)).to.equal(amount - total)
+        expect(await vault.balance(context, sender)).to.equal(deposit - total)
         expect(await vault.balance(context, receiver)).to.equal(total)
         await advanceTimeTo(expiry + 10)
-        expect(await vault.balance(context, sender)).to.equal(amount - total)
+        expect(await vault.balance(context, sender)).to.equal(deposit - total)
         expect(await vault.balance(context, receiver)).to.equal(total)
+      })
+
+      it("flows longer when lock is extended", async function () {
+        await vault.flow(context, sender, receiver, 2)
+        const start = await currentTime()
+        await vault.extend(context, maximum)
+        await advanceTimeTo(maximum)
+        const total = (maximum - start) * 2
+        expect(await vault.balance(context, sender)).to.equal(deposit - total)
+        expect(await vault.balance(context, receiver)).to.equal(total)
+        await advanceTimeTo(maximum + 10)
+        expect(await vault.balance(context, sender)).to.equal(deposit - total)
+        expect(await vault.balance(context, receiver)).to.equal(total)
+      })
+
+      it("rejects flow when insufficient available tokens", async function () {
+        const duration = maximum - await currentTime()
+        const rate = Math.round(deposit / duration)
+        await expect(
+          vault.flow(context, sender, receiver, rate + 1)
+        ).to.be.revertedWith("InsufficientBalance")
       })
     })
   })
