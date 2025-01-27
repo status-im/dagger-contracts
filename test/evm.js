@@ -5,13 +5,19 @@ let snapshots = []
 async function snapshot() {
   const id = await ethers.provider.send("evm_snapshot")
   const time = await currentTime()
-  snapshots.push({ id, time })
+  const automine = await ethers.provider.send("hardhat_getAutomine")
+  snapshots.push({ id, time, automine })
 }
 
 async function revert() {
-  const { id, time } = snapshots.pop()
+  const { id, time, automine } = snapshots.pop()
   await ethers.provider.send("evm_revert", [id])
   await ethers.provider.send("evm_setNextBlockTimestamp", [time + 1])
+  await ethers.provider.send("evm_setAutomine", [automine])
+}
+
+async function setAutomine(enabled) {
+  await ethers.provider.send("evm_setAutomine", [enabled])
 }
 
 /**
@@ -65,6 +71,7 @@ async function advanceTimeToForNextBlock(timestamp) {
 module.exports = {
   snapshot,
   revert,
+  setAutomine,
   mine,
   ensureMinimumBlockHeight,
   currentTime,

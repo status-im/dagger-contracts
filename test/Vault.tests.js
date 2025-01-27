@@ -1,7 +1,13 @@
 const { expect } = require("chai")
 const { ethers } = require("hardhat")
 const { randomBytes } = ethers.utils
-const { currentTime, advanceTimeToForNextBlock, mine } = require("./evm")
+const {
+  currentTime,
+  advanceTimeToForNextBlock,
+  mine,
+  snapshot,
+  revert,
+} = require("./evm")
 
 describe("Vault", function () {
   let token
@@ -10,6 +16,7 @@ describe("Vault", function () {
   let account, account2, account3
 
   beforeEach(async function () {
+    await snapshot()
     const TestToken = await ethers.getContractFactory("TestToken")
     token = await TestToken.deploy()
     const Vault = await ethers.getContractFactory("Vault")
@@ -18,6 +25,10 @@ describe("Vault", function () {
     await token.mint(account.address, 1_000_000)
     await token.mint(account2.address, 1_000_000)
     await token.mint(account3.address, 1_000_000)
+  })
+
+  afterEach(async function () {
+    await revert()
   })
 
   describe("depositing", function () {
