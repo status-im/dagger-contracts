@@ -23,7 +23,7 @@ struct Ask {
 }
 
 struct Content {
-  string cid; // content id, used to download the dataset
+  bytes cid; // content id, used to download the dataset
   bytes32 merkleRoot; // merkle root of the dataset, used to verify storage proofs
 }
 
