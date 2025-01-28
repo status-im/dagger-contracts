@@ -123,12 +123,19 @@ abstract contract VaultBase {
     Recipient to,
     uint128 amount
   ) internal {
-    require(
-      amount <= _balances[controller][context][from].available,
-      InsufficientBalance()
-    );
-    _balances[controller][context][from].available -= amount;
-    _balances[controller][context][to].available += amount;
+    Balance memory senderBalance = _getBalance(controller, context, from);
+    Balance memory receiverBalance = _getBalance(controller, context, to);
+    require(amount <= senderBalance.available, InsufficientBalance());
+
+    senderBalance.available -= amount;
+    receiverBalance.available += amount;
+
+    Flow memory senderFlow = _flows[controller][context][from];
+    Lock memory lock = _locks[controller][context];
+    _checkFlowInvariant(senderBalance, lock, senderFlow);
+
+    _balances[controller][context][from] = senderBalance;
+    _balances[controller][context][to] = receiverBalance;
   }
 
   function _designate(

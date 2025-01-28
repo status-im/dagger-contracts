@@ -588,6 +588,16 @@ describe("Vault", function () {
           vault.flow(context, sender, receiver, 1)
         ).to.be.revertedWith("InsufficientBalance")
       })
+
+      it("cannot transfer tokens that are flowing", async function () {
+        await vault.flow(context, sender, receiver, 5)
+        await expect(
+          vault.transfer(context, sender, receiver, 500)
+        ).not.to.be.reverted
+        await expect(
+          vault.transfer(context, sender, receiver, 1)
+        ).to.be.revertedWith("InsufficientBalance")
+      })
     })
   })
 })
