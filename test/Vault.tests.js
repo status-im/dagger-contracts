@@ -444,8 +444,8 @@ describe("Vault", function () {
       let maximum
 
       beforeEach(async function () {
-        expiry = (await currentTime()) + 20
-        maximum = expiry + 10
+        expiry = (await currentTime()) + 80
+        maximum = expiry + 20
         await vault.lock(context, expiry, maximum)
       })
 
@@ -567,28 +567,25 @@ describe("Vault", function () {
       })
 
       it("rejects flow when insufficient available tokens", async function () {
-        const duration = maximum - (await currentTime())
-        const rate = Math.ceil(deposit / duration) + 1
         await expect(
-          vault.flow(context, sender, receiver, rate)
+          vault.flow(context, sender, receiver, 11)
         ).to.be.revertedWith("InsufficientBalance")
       })
 
       it("rejects total flows exceeding available tokens", async function () {
-        const duration = maximum - (await currentTime())
-        const rate = Math.round(((2 / 3) * deposit) / duration)
-        await vault.flow(context, sender, receiver, rate)
+        await vault.flow(context, sender, receiver, 10)
         await expect(
-          vault.flow(context, sender, receiver, rate)
+          vault.flow(context, sender, receiver, 1)
         ).to.be.revertedWith("InsufficientBalance")
       })
 
       it("cannot flow designated tokens", async function () {
-        await vault.designate(context, sender, deposit / 2)
-        const duration = maximum - (await currentTime())
-        const rate = Math.round(deposit / duration)
+        await vault.designate(context, sender, 500)
         await expect(
-          vault.flow(context, sender, receiver, rate)
+          vault.flow(context, sender, receiver, 5)
+        ).not.to.be.reverted
+        await expect(
+          vault.flow(context, sender, receiver, 1)
         ).to.be.revertedWith("InsufficientBalance")
       })
     })
