@@ -476,6 +476,36 @@ describe("Vault", function () {
         expect(await getBalance(receiver2)).to.equal(8)
       })
 
+      it("allows flows to be diverted to other recipient", async function () {
+        await setAutomine(false)
+        await vault.flow(context, sender, receiver, 3)
+        await vault.flow(context, receiver, receiver2, 1)
+        await mine()
+        const start = await currentTime()
+        await advanceTimeTo(start + 2)
+        expect(await getBalance(sender)).to.equal(deposit - 6)
+        expect(await getBalance(receiver)).to.equal(4)
+        expect(await getBalance(receiver2)).to.equal(2)
+        await advanceTimeTo(start + 4)
+        expect(await getBalance(sender)).to.equal(deposit - 12)
+        expect(await getBalance(receiver)).to.equal(8)
+        expect(await getBalance(receiver2)).to.equal(4)
+      })
+
+      it("allows flow to be reversed back to the sender", async function () {
+        await setAutomine(false)
+        await vault.flow(context, sender, receiver, 3)
+        await vault.flow(context, receiver, sender, 3)
+        await mine()
+        const start = await currentTime()
+        await advanceTimeTo(start + 2)
+        expect(await getBalance(sender)).to.equal(deposit)
+        expect(await getBalance(receiver)).to.equal(0)
+        await advanceTimeTo(start + 4)
+        expect(await getBalance(sender)).to.equal(deposit)
+        expect(await getBalance(receiver)).to.equal(0)
+      })
+
       it("can change flows over time", async function () {
         await setAutomine(false)
         await vault.flow(context, sender, receiver, 1)
@@ -530,7 +560,7 @@ describe("Vault", function () {
         expect(await getBalance(receiver)).to.equal(total)
       })
 
-      it("rejects negative flows", async function() {
+      it("rejects negative flows", async function () {
         await expect(
           vault.flow(context, sender, receiver, -1)
         ).to.be.revertedWith("NegativeFlow")
