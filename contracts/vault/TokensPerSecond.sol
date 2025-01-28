@@ -11,6 +11,7 @@ using {_tokensPerSecondPlus as +} for TokensPerSecond global;
 using {_tokensPerSecondEquals as ==} for TokensPerSecond global;
 using {_tokensPerSecondNotEqual as !=} for TokensPerSecond global;
 using {_tokensPerSecondAtLeast as >=} for TokensPerSecond global;
+using {_tokensPerSecondLessThan as <} for TokensPerSecond global;
 
 function _tokensPerSecondNegate(
   TokensPerSecond rate
@@ -53,4 +54,11 @@ function _tokensPerSecondAtLeast(
   TokensPerSecond b
 ) pure returns (bool) {
   return TokensPerSecond.unwrap(a) >= TokensPerSecond.unwrap(b);
+}
+
+function _tokensPerSecondLessThan(
+  TokensPerSecond a,
+  TokensPerSecond b
+) pure returns (bool) {
+  return TokensPerSecond.unwrap(a) < TokensPerSecond.unwrap(b);
 }

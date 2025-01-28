@@ -179,20 +179,34 @@ abstract contract VaultBase {
     Lock memory lock = _locks[controller][context];
     require(lock.isLocked(), LockRequired());
 
-    Timestamp start = Timestamps.currentTime();
+    Balance memory senderBalance = _getBalance(controller, context, from);
+    Balance memory receiverBalance = _getBalance(controller, context, to);
     Flow memory senderFlow = _flows[controller][context][from];
+    Flow memory receiverFlow = _flows[controller][context][to];
+
+    Timestamp start = Timestamps.currentTime();
     senderFlow.start = start;
     senderFlow.rate = senderFlow.rate - rate;
-    Flow memory receiverFlow = _flows[controller][context][to];
     receiverFlow.start = start;
     receiverFlow.rate = receiverFlow.rate + rate;
 
-    Balance memory senderBalance = _getBalance(controller, context, from);
-    uint128 flowMaximum = uint128(-senderFlow._totalAt(lock.maximum));
-    require(flowMaximum <= senderBalance.available, InsufficientBalance());
+    _checkFlowInvariant(senderBalance, lock, senderFlow);
 
+    _balances[controller][context][from] = senderBalance;
+    _balances[controller][context][to] = receiverBalance;
     _flows[controller][context][from] = senderFlow;
     _flows[controller][context][to] = receiverFlow;
+  }
+
+  function _checkFlowInvariant(
+    Balance memory balance,
+    Lock memory lock,
+    Flow memory flow
+  ) private pure {
+    if (flow.rate < TokensPerSecond.wrap(0)) {
+      uint128 outgoing = uint128(-flow._totalAt(lock.maximum));
+      require(outgoing <= balance.available, InsufficientBalance());
+    }
   }
 
   error InsufficientBalance();
