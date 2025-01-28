@@ -401,7 +401,7 @@ describe("Vault", function () {
 
   describe("flow", function () {
     const context = randomBytes(32)
-    const deposit = 100
+    const deposit = 1000
 
     let sender
     let receiver
@@ -516,9 +516,9 @@ describe("Vault", function () {
 
       it("rejects flow when insufficient available tokens", async function () {
         const duration = maximum - (await currentTime())
-        const rate = Math.round(deposit / duration)
+        const rate = Math.ceil(deposit / duration) + 1
         await expect(
-          vault.flow(context, sender, receiver, rate + 1)
+          vault.flow(context, sender, receiver, rate)
         ).to.be.revertedWith("InsufficientBalance")
       })
 
@@ -532,7 +532,7 @@ describe("Vault", function () {
       })
 
       it("cannot flow designated tokens", async function () {
-        await vault.designate(context, sender, 10)
+        await vault.designate(context, sender, deposit / 2)
         const duration = maximum - (await currentTime())
         const rate = Math.round(deposit / duration)
         await expect(
