@@ -508,6 +508,12 @@ describe("Vault", function () {
         expect(await getBalance(receiver)).to.equal(total)
       })
 
+      it("rejects negative flows", async function() {
+        await expect(
+          vault.flow(context, sender, receiver, -1)
+        ).to.be.revertedWith("NegativeFlow")
+      })
+
       it("rejects flow when insufficient available tokens", async function () {
         const duration = maximum - (await currentTime())
         const rate = Math.round(deposit / duration)
