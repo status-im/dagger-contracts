@@ -90,6 +90,7 @@ abstract contract VaultBase {
     Recipient recipient
   ) private {
     delete _balances[controller][context][recipient];
+    delete _flows[controller][context][recipient];
   }
 
   function _withdraw(
