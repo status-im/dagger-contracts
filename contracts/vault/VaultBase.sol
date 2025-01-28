@@ -149,10 +149,12 @@ abstract contract VaultBase {
     Timestamp expiry,
     Timestamp maximum
   ) internal {
-    require(expiry <= maximum, ExpiryPastMaximum());
-    Lock memory existing = _locks[controller][context];
-    require(existing.maximum == Timestamp.wrap(0), AlreadyLocked());
-    _locks[controller][context] = Lock({expiry: expiry, maximum: maximum});
+    Lock memory lock = _locks[controller][context];
+    require(lock.maximum == Timestamp.wrap(0), AlreadyLocked());
+    lock.expiry = expiry;
+    lock.maximum = maximum;
+    _checkLockInvariant(lock);
+    _locks[controller][context] = lock;
   }
 
   function _extendLock(
@@ -163,8 +165,9 @@ abstract contract VaultBase {
     Lock memory lock = _locks[controller][context];
     require(lock.isLocked(), LockRequired());
     require(lock.expiry <= expiry, InvalidExpiry());
-    require(expiry <= lock.maximum, ExpiryPastMaximum());
-    _locks[controller][context].expiry = expiry;
+    lock.expiry = expiry;
+    _checkLockInvariant(lock);
+    _locks[controller][context] = lock;
   }
 
   function _flow(
@@ -196,6 +199,10 @@ abstract contract VaultBase {
     _balances[controller][context][to] = receiverBalance;
     _flows[controller][context][from] = senderFlow;
     _flows[controller][context][to] = receiverFlow;
+  }
+
+  function _checkLockInvariant(Lock memory lock) private pure {
+    require(lock.expiry <= lock.maximum, ExpiryPastMaximum());
   }
 
   function _checkFlowInvariant(
