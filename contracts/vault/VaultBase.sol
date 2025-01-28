@@ -110,9 +110,14 @@ abstract contract VaultBase {
     Context context,
     Recipient recipient
   ) internal {
+    Flow memory flow = _flows[controller][context][recipient];
+    require(flow.rate == TokensPerSecond.wrap(0), CannotBurnFlowingTokens());
+
     Balance memory balance = _getBalance(controller, context, recipient);
     uint128 amount = balance.available + balance.designated;
+
     _delete(controller, context, recipient);
+
     _token.safeTransfer(address(0xdead), amount);
   }
 
@@ -230,4 +235,5 @@ abstract contract VaultBase {
   error InvalidExpiry();
   error LockRequired();
   error NegativeFlow();
+  error CannotBurnFlowingTokens();
 }

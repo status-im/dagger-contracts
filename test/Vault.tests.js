@@ -598,6 +598,22 @@ describe("Vault", function () {
           vault.transfer(context, sender, receiver, 1)
         ).to.be.revertedWith("InsufficientBalance")
       })
+
+      it("cannot burn tokens that are flowing", async function () {
+        await vault.flow(context, sender, receiver, 5)
+        await expect(
+          vault.burn(context, sender)
+        ).to.be.revertedWith("CannotBurnFlowingTokens")
+        await expect(
+          vault.burn(context, receiver)
+        ).to.be.revertedWith("CannotBurnFlowingTokens")
+      })
+
+      it("can burn tokens that are no longer flowing", async function () {
+        await vault.flow(context, sender, receiver, 5)
+        await vault.flow(context, receiver, sender, 5)
+        await expect(vault.burn(context, sender)).not.to.be.reverted
+      })
     })
   })
 })
