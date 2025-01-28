@@ -7,7 +7,7 @@ contract Vault is VaultBase {
   // solhint-disable-next-line no-empty-blocks
   constructor(IERC20 token) VaultBase(token) {}
 
-  function balance(
+  function getBalance(
     Context context,
     Recipient recipient
   ) public view returns (uint256) {
@@ -16,7 +16,7 @@ contract Vault is VaultBase {
     return b.available + b.designated;
   }
 
-  function designated(
+  function getDesignatedBalance(
     Context context,
     Recipient recipient
   ) public view returns (uint256) {
@@ -25,7 +25,7 @@ contract Vault is VaultBase {
     return b.designated;
   }
 
-  function lock(Context context) public view returns (Lock memory) {
+  function getLock(Context context) public view returns (Lock memory) {
     Controller controller = Controller.wrap(msg.sender);
     return _getLock(controller, context);
   }
@@ -69,12 +69,12 @@ contract Vault is VaultBase {
     _designate(controller, context, recipient, amount);
   }
 
-  function lockup(Context context, Timestamp expiry, Timestamp maximum) public {
+  function lock(Context context, Timestamp expiry, Timestamp maximum) public {
     Controller controller = Controller.wrap(msg.sender);
     _lockup(controller, context, expiry, maximum);
   }
 
-  function extend(Context context, Timestamp expiry) public {
+  function extendLock(Context context, Timestamp expiry) public {
     Controller controller = Controller.wrap(msg.sender);
     _extendLock(controller, context, expiry);
   }

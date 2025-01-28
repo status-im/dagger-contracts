@@ -38,7 +38,7 @@ describe("Vault", function () {
     it("accepts deposits of tokens", async function () {
       await token.connect(account).approve(vault.address, amount)
       await vault.deposit(context, account.address, amount)
-      expect(await vault.balance(context, account.address)).to.equal(amount)
+      expect(await vault.getBalance(context, account.address)).to.equal(amount)
     })
 
     it("keeps custody of tokens that are deposited", async function () {
@@ -57,7 +57,7 @@ describe("Vault", function () {
       await token.connect(account).approve(vault.address, amount)
       await vault.deposit(context, account.address, amount / 2)
       await vault.deposit(context, account.address, amount / 2)
-      expect(await vault.balance(context, account.address)).to.equal(amount)
+      expect(await vault.getBalance(context, account.address)).to.equal(amount)
     })
 
     it("separates deposits from different contexts", async function () {
@@ -66,8 +66,8 @@ describe("Vault", function () {
       await token.connect(account).approve(vault.address, 3)
       await vault.deposit(context1, account.address, 1)
       await vault.deposit(context2, account.address, 2)
-      expect(await vault.balance(context1, account.address)).to.equal(1)
-      expect(await vault.balance(context2, account.address)).to.equal(2)
+      expect(await vault.getBalance(context1, account.address)).to.equal(1)
+      expect(await vault.getBalance(context2, account.address)).to.equal(2)
     })
 
     it("separates deposits from different controllers", async function () {
@@ -77,8 +77,8 @@ describe("Vault", function () {
       await token.connect(account).approve(vault.address, 3)
       await vault1.deposit(context, account.address, 1)
       await vault2.deposit(context, account.address, 2)
-      expect(await vault1.balance(context, account.address)).to.equal(1)
-      expect(await vault2.balance(context, account.address)).to.equal(2)
+      expect(await vault1.getBalance(context, account.address)).to.equal(1)
+      expect(await vault2.getBalance(context, account.address)).to.equal(2)
     })
   })
 
@@ -109,7 +109,7 @@ describe("Vault", function () {
 
     it("empties the balance when withdrawing", async function () {
       await vault.withdraw(context, account.address)
-      expect(await vault.balance(context, account.address)).to.equal(0)
+      expect(await vault.getBalance(context, account.address)).to.equal(0)
     })
 
     it("does not withdraw more than once", async function () {
@@ -132,7 +132,7 @@ describe("Vault", function () {
 
     it("can burn a deposit", async function () {
       await vault.burn(context, account.address)
-      expect(await vault.balance(context, account.address)).to.equal(0)
+      expect(await vault.getBalance(context, account.address)).to.equal(0)
     })
 
     it("no longer allows withdrawal", async function () {
@@ -163,16 +163,16 @@ describe("Vault", function () {
 
     it("can transfer tokens from one recipient to the other", async function () {
       await vault.transfer(context, account.address, account2.address, amount)
-      expect(await vault.balance(context, account.address)).to.equal(0)
-      expect(await vault.balance(context, account2.address)).to.equal(amount)
+      expect(await vault.getBalance(context, account.address)).to.equal(0)
+      expect(await vault.getBalance(context, account2.address)).to.equal(amount)
     })
 
     it("can transfer part of a balance", async function () {
       await vault.transfer(context, account.address, account2.address, 10)
-      expect(await vault.balance(context, account.address)).to.equal(
+      expect(await vault.getBalance(context, account.address)).to.equal(
         amount - 10
       )
-      expect(await vault.balance(context, account2.address)).to.equal(10)
+      expect(await vault.getBalance(context, account2.address)).to.equal(10)
     })
 
     it("does not transfer more than the balance", async function () {
@@ -200,8 +200,8 @@ describe("Vault", function () {
     it("can transfer out funds that were transfered in", async function () {
       await vault.transfer(context, account.address, account2.address, amount)
       await vault.transfer(context, account2.address, account3.address, amount)
-      expect(await vault.balance(context, account2.address)).to.equal(0)
-      expect(await vault.balance(context, account3.address)).to.equal(amount)
+      expect(await vault.getBalance(context, account2.address)).to.equal(0)
+      expect(await vault.getBalance(context, account3.address)).to.equal(amount)
     })
   })
 
@@ -217,18 +217,24 @@ describe("Vault", function () {
 
     it("can designate tokens for a single recipient", async function () {
       await vault.designate(context, account.address, amount)
-      expect(await vault.designated(context, account.address)).to.equal(amount)
+      expect(
+        await vault.getDesignatedBalance(context, account.address)
+      ).to.equal(amount)
     })
 
     it("can designate part of the balance", async function () {
       await vault.designate(context, account.address, 10)
-      expect(await vault.designated(context, account.address)).to.equal(10)
+      expect(
+        await vault.getDesignatedBalance(context, account.address)
+      ).to.equal(10)
     })
 
     it("adds up designated tokens", async function () {
       await vault.designate(context, account.address, 10)
       await vault.designate(context, account.address, 10)
-      expect(await vault.designated(context, account.address)).to.equal(20)
+      expect(
+        await vault.getDesignatedBalance(context, account.address)
+      ).to.equal(20)
     })
 
     it("cannot designate more than the undesignated balance", async function () {
@@ -240,7 +246,7 @@ describe("Vault", function () {
 
     it("does not change the balance", async function () {
       await vault.designate(context, account.address, 10)
-      expect(await vault.balance(context, account.address)).to.equal(amount)
+      expect(await vault.getBalance(context, account.address)).to.equal(amount)
     })
 
     it("does not allow designated tokens to be transfered", async function () {
@@ -270,7 +276,7 @@ describe("Vault", function () {
     it("allows designated tokens to be burned", async function () {
       await vault.designate(context, account.address, 10)
       await vault.burn(context, account.address)
-      expect(await vault.balance(context, account.address)).to.equal(0)
+      expect(await vault.getBalance(context, account.address)).to.equal(0)
     })
 
     it("moves burned designated tokens to address 0xdead", async function () {
@@ -299,31 +305,31 @@ describe("Vault", function () {
     })
 
     it("can lock up all tokens in a context", async function () {
-      await vault.lockup(context, expiry, maximum)
-      expect((await vault.lock(context))[0]).to.equal(expiry)
-      expect((await vault.lock(context))[1]).to.equal(maximum)
+      await vault.lock(context, expiry, maximum)
+      expect((await vault.getLock(context))[0]).to.equal(expiry)
+      expect((await vault.getLock(context))[1]).to.equal(maximum)
     })
 
     it("cannot lock up when already locked", async function () {
-      await vault.lockup(context, expiry, maximum)
-      const locking = vault.lockup(context, expiry, maximum)
+      await vault.lock(context, expiry, maximum)
+      const locking = vault.lock(context, expiry, maximum)
       await expect(locking).to.be.revertedWith("AlreadyLocked")
     })
 
     it("cannot lock when expiry is past maximum", async function () {
-      const locking = vault.lockup(context, maximum + 1, maximum)
+      const locking = vault.lock(context, maximum + 1, maximum)
       await expect(locking).to.be.revertedWith("ExpiryPastMaximum")
     })
 
     it("does not allow withdrawal before lock expires", async function () {
-      await vault.lockup(context, expiry, expiry)
+      await vault.lock(context, expiry, expiry)
       await advanceTimeToForNextBlock(expiry - 1)
       const withdrawing = vault.withdraw(context, account.address)
       await expect(withdrawing).to.be.revertedWith("Locked")
     })
 
     it("locks withdrawal for all recipients in a context", async function () {
-      await vault.lockup(context, expiry, expiry)
+      await vault.lock(context, expiry, expiry)
       const address1 = account.address
       const address2 = account2.address
       await vault.transfer(context, address1, address2, amount / 2)
@@ -334,7 +340,7 @@ describe("Vault", function () {
     })
 
     it("locks withdrawal for newly deposited tokens", async function () {
-      await vault.lockup(context, expiry, expiry)
+      await vault.lock(context, expiry, expiry)
       await token.connect(account2).approve(vault.address, amount)
       await vault.deposit(context, account2.address, amount)
       const withdrawing = vault.withdraw(context, account2.address)
@@ -342,7 +348,7 @@ describe("Vault", function () {
     })
 
     it("allows withdrawal after lock expires", async function () {
-      await vault.lockup(context, expiry, expiry)
+      await vault.lock(context, expiry, expiry)
       await advanceTimeToForNextBlock(expiry)
       const before = await token.balanceOf(account.address)
       await vault.withdraw(context, account.address)
@@ -351,44 +357,44 @@ describe("Vault", function () {
     })
 
     it("can extend a lock expiry up to its maximum", async function () {
-      await vault.lockup(context, expiry, maximum)
-      await vault.extend(context, expiry + 1)
-      expect((await vault.lock(context))[0]).to.equal(expiry + 1)
-      await vault.extend(context, maximum)
-      expect((await vault.lock(context))[0]).to.equal(maximum)
+      await vault.lock(context, expiry, maximum)
+      await vault.extendLock(context, expiry + 1)
+      expect((await vault.getLock(context))[0]).to.equal(expiry + 1)
+      await vault.extendLock(context, maximum)
+      expect((await vault.getLock(context))[0]).to.equal(maximum)
     })
 
     it("cannot extend a lock past its maximum", async function () {
-      await vault.lockup(context, expiry, maximum)
-      const extending = vault.extend(context, maximum + 1)
+      await vault.lock(context, expiry, maximum)
+      const extending = vault.extendLock(context, maximum + 1)
       await expect(extending).to.be.revertedWith("ExpiryPastMaximum")
     })
 
     it("cannot move expiry forward", async function () {
-      await vault.lockup(context, expiry, maximum)
-      const extending = vault.extend(context, expiry - 1)
+      await vault.lock(context, expiry, maximum)
+      const extending = vault.extendLock(context, expiry - 1)
       await expect(extending).to.be.revertedWith("InvalidExpiry")
     })
 
     it("cannot extend an expired lock", async function () {
-      await vault.lockup(context, expiry, maximum)
+      await vault.lock(context, expiry, maximum)
       await advanceTimeToForNextBlock(expiry)
-      const extending = vault.extend(context, maximum)
+      const extending = vault.extendLock(context, maximum)
       await expect(extending).to.be.revertedWith("LockExpired")
     })
 
     it("allows locked tokens to be burned", async function () {
-      await vault.lockup(context, expiry, expiry)
+      await vault.lock(context, expiry, expiry)
       await vault.burn(context, account.address)
-      expect(await vault.balance(context, account.address)).to.equal(0)
+      expect(await vault.getBalance(context, account.address)).to.equal(0)
     })
 
     it("deletes lock when funds are withdrawn", async function () {
-      await vault.lockup(context, expiry, expiry)
+      await vault.lock(context, expiry, expiry)
       await advanceTimeToForNextBlock(expiry)
       await vault.withdraw(context, account.address)
-      expect((await vault.lock(context))[0]).to.equal(0)
-      expect((await vault.lock(context))[1]).to.equal(0)
+      expect((await vault.getLock(context))[0]).to.equal(0)
+      expect((await vault.getLock(context))[1]).to.equal(0)
     })
   })
 
@@ -406,6 +412,10 @@ describe("Vault", function () {
       receiver = account2.address
     })
 
+    async function getBalance(recipient) {
+      return await vault.getBalance(context, recipient)
+    }
+
     async function advanceTimeTo(timestamp) {
       await advanceTimeToForNextBlock(timestamp)
       await mine()
@@ -419,7 +429,7 @@ describe("Vault", function () {
 
     it("requires that the lock is not expired", async function () {
       let expiry = (await currentTime()) + 20
-      await vault.lockup(context, expiry, expiry)
+      await vault.lock(context, expiry, expiry)
       await advanceTimeTo(expiry)
       await expect(vault.flow(context, sender, receiver, 2)).to.be.revertedWith(
         "LockExpired"
@@ -433,25 +443,25 @@ describe("Vault", function () {
       beforeEach(async function () {
         expiry = (await currentTime()) + 20
         maximum = expiry + 10
-        await vault.lockup(context, expiry, maximum)
+        await vault.lock(context, expiry, maximum)
       })
 
       it("moves tokens over time", async function () {
         await vault.flow(context, sender, receiver, 2)
         const start = await currentTime()
         await advanceTimeTo(start + 2)
-        expect(await vault.balance(context, sender)).to.equal(deposit - 4)
-        expect(await vault.balance(context, receiver)).to.equal(4)
+        expect(await getBalance(sender)).to.equal(deposit - 4)
+        expect(await getBalance(receiver)).to.equal(4)
         await advanceTimeTo(start + 4)
-        expect(await vault.balance(context, sender)).to.equal(deposit - 8)
-        expect(await vault.balance(context, receiver)).to.equal(8)
+        expect(await getBalance(sender)).to.equal(deposit - 8)
+        expect(await getBalance(receiver)).to.equal(8)
       })
 
       it("designates tokens that flow for the recipient", async function () {
         await vault.flow(context, sender, receiver, 3)
         const start = await currentTime()
         await advanceTimeTo(start + 7)
-        expect(await vault.designated(context, receiver)).to.equal(21)
+        expect(await vault.getDesignatedBalance(context, receiver)).to.equal(21)
       })
 
       it("stops flowing when lock expires", async function () {
@@ -459,28 +469,28 @@ describe("Vault", function () {
         const start = await currentTime()
         await advanceTimeTo(expiry)
         const total = (expiry - start) * 2
-        expect(await vault.balance(context, sender)).to.equal(deposit - total)
-        expect(await vault.balance(context, receiver)).to.equal(total)
+        expect(await getBalance(sender)).to.equal(deposit - total)
+        expect(await getBalance(receiver)).to.equal(total)
         await advanceTimeTo(expiry + 10)
-        expect(await vault.balance(context, sender)).to.equal(deposit - total)
-        expect(await vault.balance(context, receiver)).to.equal(total)
+        expect(await getBalance(sender)).to.equal(deposit - total)
+        expect(await getBalance(receiver)).to.equal(total)
       })
 
       it("flows longer when lock is extended", async function () {
         await vault.flow(context, sender, receiver, 2)
         const start = await currentTime()
-        await vault.extend(context, maximum)
+        await vault.extendLock(context, maximum)
         await advanceTimeTo(maximum)
         const total = (maximum - start) * 2
-        expect(await vault.balance(context, sender)).to.equal(deposit - total)
-        expect(await vault.balance(context, receiver)).to.equal(total)
+        expect(await getBalance(sender)).to.equal(deposit - total)
+        expect(await getBalance(receiver)).to.equal(total)
         await advanceTimeTo(maximum + 10)
-        expect(await vault.balance(context, sender)).to.equal(deposit - total)
-        expect(await vault.balance(context, receiver)).to.equal(total)
+        expect(await getBalance(sender)).to.equal(deposit - total)
+        expect(await getBalance(receiver)).to.equal(total)
       })
 
       it("rejects flow when insufficient available tokens", async function () {
-        const duration = maximum - await currentTime()
+        const duration = maximum - (await currentTime())
         const rate = Math.round(deposit / duration)
         await expect(
           vault.flow(context, sender, receiver, rate + 1)
