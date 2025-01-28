@@ -5,9 +5,13 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./Timestamps.sol";
 import "./TokensPerSecond.sol";
+import "./Flows.sol";
+import "./Locks.sol";
 
 using SafeERC20 for IERC20;
 using Timestamps for Timestamp;
+using Flows for Flow;
+using Locks for Lock;
 
 abstract contract VaultBase {
   IERC20 internal immutable _token;
@@ -17,18 +21,8 @@ abstract contract VaultBase {
   type Recipient is address;
 
   struct Balance {
-    uint256 available;
-    uint256 designated;
-  }
-
-  struct Lock {
-    Timestamp expiry;
-    Timestamp maximum;
-  }
-
-  struct Flow {
-    Timestamp start;
-    TokensPerSecond rate;
+    uint128 available;
+    uint128 designated;
   }
 
   mapping(Controller => mapping(Context => Lock)) private _locks;
@@ -46,29 +40,30 @@ abstract contract VaultBase {
     Context context,
     Recipient recipient
   ) internal view returns (Balance memory) {
-    Balance memory balance = _balances[controller][context][recipient];
-    int256 accumulated = _accumulateFlow(controller, context, recipient);
-    if (accumulated >= 0) {
-      balance.designated += uint256(accumulated);
-    } else {
-      balance.available -= uint256(-accumulated);
-    }
-    return balance;
+    Balance storage balance = _balances[controller][context][recipient];
+    Flow storage flow = _flows[controller][context][recipient];
+    Lock storage lock = _locks[controller][context];
+    Timestamp timestamp = Timestamps.currentTime();
+    return _getBalanceAt(balance, flow, lock, timestamp);
   }
 
-  function _accumulateFlow(
-    Controller controller,
-    Context context,
-    Recipient recipient
-  ) private view returns (int256) {
-    Flow memory flow = _flows[controller][context][recipient];
-    if (flow.rate == TokensPerSecond.wrap(0)) {
-      return 0;
+  function _getBalanceAt(
+    Balance memory balance,
+    Flow memory flow,
+    Lock storage lock,
+    Timestamp timestamp
+  ) private view returns (Balance memory) {
+    Balance memory result = balance;
+    if (flow.rate != TokensPerSecond.wrap(0)) {
+      Timestamp end = Timestamps.earliest(timestamp, lock.expiry);
+      int128 accumulated = flow._totalAt(end);
+      if (accumulated >= 0) {
+        result.designated += uint128(accumulated);
+      } else {
+        result.available -= uint128(-accumulated);
+      }
     }
-    Timestamp expiry = _getLock(controller, context).expiry;
-    Timestamp flowEnd = Timestamps.earliest(Timestamps.currentTime(), expiry);
-    uint64 duration = Timestamp.unwrap(flowEnd) - Timestamp.unwrap(flow.start);
-    return TokensPerSecond.unwrap(flow.rate) * int256(uint256(duration));
+    return result;
   }
 
   function _getLock(
@@ -82,7 +77,7 @@ abstract contract VaultBase {
     Controller controller,
     Context context,
     address from,
-    uint256 amount
+    uint128 amount
   ) internal {
     Recipient recipient = Recipient.wrap(from);
     _balances[controller][context][recipient].available += amount;
@@ -102,13 +97,10 @@ abstract contract VaultBase {
     Context context,
     Recipient recipient
   ) internal {
-    require(
-      _getLock(controller, context).expiry <= Timestamps.currentTime(),
-      Locked()
-    );
+    require(!_locks[controller][context].isLocked(), Locked());
     delete _locks[controller][context];
     Balance memory balance = _getBalance(controller, context, recipient);
-    uint256 amount = balance.available + balance.designated;
+    uint128 amount = balance.available + balance.designated;
     _delete(controller, context, recipient);
     _token.safeTransfer(Recipient.unwrap(recipient), amount);
   }
@@ -119,7 +111,7 @@ abstract contract VaultBase {
     Recipient recipient
   ) internal {
     Balance memory balance = _getBalance(controller, context, recipient);
-    uint256 amount = balance.available + balance.designated;
+    uint128 amount = balance.available + balance.designated;
     _delete(controller, context, recipient);
     _token.safeTransfer(address(0xdead), amount);
   }
@@ -129,7 +121,7 @@ abstract contract VaultBase {
     Context context,
     Recipient from,
     Recipient to,
-    uint256 amount
+    uint128 amount
   ) internal {
     require(
       amount <= _balances[controller][context][from].available,
@@ -143,7 +135,7 @@ abstract contract VaultBase {
     Controller controller,
     Context context,
     Recipient recipient,
-    uint256 amount
+    uint128 amount
   ) internal {
     Balance storage balance = _balances[controller][context][recipient];
     require(amount <= balance.available, InsufficientBalance());
@@ -157,9 +149,9 @@ abstract contract VaultBase {
     Timestamp expiry,
     Timestamp maximum
   ) internal {
-    Lock memory existing = _getLock(controller, context);
-    require(existing.maximum == Timestamp.wrap(0), AlreadyLocked());
     require(expiry <= maximum, ExpiryPastMaximum());
+    Lock memory existing = _locks[controller][context];
+    require(existing.maximum == Timestamp.wrap(0), AlreadyLocked());
     _locks[controller][context] = Lock({expiry: expiry, maximum: maximum});
   }
 
@@ -168,10 +160,10 @@ abstract contract VaultBase {
     Context context,
     Timestamp expiry
   ) internal {
-    Lock memory existing = _getLock(controller, context);
-    require(Timestamps.currentTime() < existing.expiry, LockExpired());
-    require(existing.expiry <= expiry, InvalidExpiry());
-    require(expiry <= existing.maximum, ExpiryPastMaximum());
+    Lock memory lock = _locks[controller][context];
+    require(lock.isLocked(), LockRequired());
+    require(lock.expiry <= expiry, InvalidExpiry());
+    require(expiry <= lock.maximum, ExpiryPastMaximum());
     _locks[controller][context].expiry = expiry;
   }
 
@@ -182,16 +174,25 @@ abstract contract VaultBase {
     Recipient to,
     TokensPerSecond rate
   ) internal {
-    Lock memory lock = _getLock(controller, context);
+    require(rate >= TokensPerSecond.wrap(0), NegativeFlow());
+
+    Lock memory lock = _locks[controller][context];
+    require(lock.isLocked(), LockRequired());
+
     Timestamp start = Timestamps.currentTime();
-    require(lock.expiry != Timestamp.wrap(0), LockRequired());
-    require(start < lock.expiry, LockExpired());
-    uint64 duration = Timestamp.unwrap(lock.maximum) - Timestamp.unwrap(start);
-    int256 total = int256(uint256(duration)) * TokensPerSecond.unwrap(rate);
-    Balance memory balance = _getBalance(controller, context, from);
-    require(total <= int256(balance.available), InsufficientBalance());
-    _flows[controller][context][to] = Flow({start: start, rate: rate});
-    _flows[controller][context][from] = Flow({start: start, rate: -rate});
+    Flow memory senderFlow = _flows[controller][context][from];
+    senderFlow.start = start;
+    senderFlow.rate = senderFlow.rate - rate;
+    Flow memory receiverFlow = _flows[controller][context][to];
+    receiverFlow.start = start;
+    receiverFlow.rate = receiverFlow.rate + rate;
+
+    Balance memory senderBalance = _getBalance(controller, context, from);
+    uint128 flowMaximum = uint128(-senderFlow._totalAt(lock.maximum));
+    require(flowMaximum <= senderBalance.available, InsufficientBalance());
+
+    _flows[controller][context][from] = senderFlow;
+    _flows[controller][context][to] = receiverFlow;
   }
 
   error InsufficientBalance();
@@ -199,6 +200,6 @@ abstract contract VaultBase {
   error AlreadyLocked();
   error ExpiryPastMaximum();
   error InvalidExpiry();
-  error LockExpired();
   error LockRequired();
+  error NegativeFlow();
 }

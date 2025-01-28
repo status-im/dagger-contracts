@@ -5,6 +5,7 @@ const {
   currentTime,
   advanceTimeToForNextBlock,
   mine,
+  setAutomine,
   snapshot,
   revert,
 } = require("./evm")
@@ -380,7 +381,7 @@ describe("Vault", function () {
       await vault.lock(context, expiry, maximum)
       await advanceTimeToForNextBlock(expiry)
       const extending = vault.extendLock(context, maximum)
-      await expect(extending).to.be.revertedWith("LockExpired")
+      await expect(extending).to.be.revertedWith("LockRequired")
     })
 
     it("allows locked tokens to be burned", async function () {
@@ -404,12 +405,14 @@ describe("Vault", function () {
 
     let sender
     let receiver
+    let receiver2
 
     beforeEach(async function () {
       await token.connect(account).approve(vault.address, deposit)
       await vault.deposit(context, account.address, deposit)
       sender = account.address
       receiver = account2.address
+      receiver2 = account3.address
     })
 
     async function getBalance(recipient) {
@@ -432,7 +435,7 @@ describe("Vault", function () {
       await vault.lock(context, expiry, expiry)
       await advanceTimeTo(expiry)
       await expect(vault.flow(context, sender, receiver, 2)).to.be.revertedWith(
-        "LockExpired"
+        "LockRequired"
       )
     })
 
@@ -455,6 +458,22 @@ describe("Vault", function () {
         await advanceTimeTo(start + 4)
         expect(await getBalance(sender)).to.equal(deposit - 8)
         expect(await getBalance(receiver)).to.equal(8)
+      })
+
+      it("can move tokens to several different recipients", async function () {
+        await setAutomine(false)
+        await vault.flow(context, sender, receiver, 1)
+        await vault.flow(context, sender, receiver2, 2)
+        await mine()
+        const start = await currentTime()
+        await advanceTimeTo(start + 2)
+        expect(await getBalance(sender)).to.equal(deposit - 6)
+        expect(await getBalance(receiver)).to.equal(2)
+        expect(await getBalance(receiver2)).to.equal(4)
+        await advanceTimeTo(start + 4)
+        expect(await getBalance(sender)).to.equal(deposit - 12)
+        expect(await getBalance(receiver)).to.equal(4)
+        expect(await getBalance(receiver2)).to.equal(8)
       })
 
       it("designates tokens that flow for the recipient", async function () {
@@ -494,6 +513,24 @@ describe("Vault", function () {
         const rate = Math.round(deposit / duration)
         await expect(
           vault.flow(context, sender, receiver, rate + 1)
+        ).to.be.revertedWith("InsufficientBalance")
+      })
+
+      it("rejects total flows exceeding available tokens", async function () {
+        const duration = maximum - (await currentTime())
+        const rate = Math.round(((2 / 3) * deposit) / duration)
+        await vault.flow(context, sender, receiver, rate)
+        await expect(
+          vault.flow(context, sender, receiver, rate)
+        ).to.be.revertedWith("InsufficientBalance")
+      })
+
+      it("cannot flow designated tokens", async function () {
+        await vault.designate(context, sender, 10)
+        const duration = maximum - (await currentTime())
+        const rate = Math.round(deposit / duration)
+        await expect(
+          vault.flow(context, sender, receiver, rate)
         ).to.be.revertedWith("InsufficientBalance")
       })
     })

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import "./VaultBase.sol";
+import "./vault/VaultBase.sol";
 
 contract Vault is VaultBase {
   // solhint-disable-next-line no-empty-blocks
@@ -10,7 +10,7 @@ contract Vault is VaultBase {
   function getBalance(
     Context context,
     Recipient recipient
-  ) public view returns (uint256) {
+  ) public view returns (uint128) {
     Controller controller = Controller.wrap(msg.sender);
     Balance memory b = _getBalance(controller, context, recipient);
     return b.available + b.designated;
@@ -19,7 +19,7 @@ contract Vault is VaultBase {
   function getDesignatedBalance(
     Context context,
     Recipient recipient
-  ) public view returns (uint256) {
+  ) public view returns (uint128) {
     Controller controller = Controller.wrap(msg.sender);
     Balance memory b = _getBalance(controller, context, recipient);
     return b.designated;
@@ -30,7 +30,7 @@ contract Vault is VaultBase {
     return _getLock(controller, context);
   }
 
-  function deposit(Context context, address from, uint256 amount) public {
+  function deposit(Context context, address from, uint128 amount) public {
     Controller controller = Controller.wrap(msg.sender);
     _deposit(controller, context, from, amount);
   }
@@ -54,7 +54,7 @@ contract Vault is VaultBase {
     Context context,
     Recipient from,
     Recipient to,
-    uint256 amount
+    uint128 amount
   ) public {
     Controller controller = Controller.wrap(msg.sender);
     _transfer(controller, context, from, to, amount);
@@ -63,7 +63,7 @@ contract Vault is VaultBase {
   function designate(
     Context context,
     Recipient recipient,
-    uint256 amount
+    uint128 amount
   ) public {
     Controller controller = Controller.wrap(msg.sender);
     _designate(controller, context, recipient, amount);
