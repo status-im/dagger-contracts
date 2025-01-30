@@ -600,6 +600,15 @@ describe("Vault", function () {
         ).to.be.revertedWith("InsufficientBalance")
       })
 
+      it("cannot designate tokens that are flowing", async function () {
+        await vault.flow(context, sender, receiver, 5)
+        setAutomine(true)
+        await vault.designate(context, sender, 500)
+        await expect(vault.designate(context, sender, 1)).to.be.revertedWith(
+          "InsufficientBalance"
+        )
+      })
+
       it("cannot burn tokens that are flowing", async function () {
         await vault.flow(context, sender, receiver, 5)
         setAutomine(true)

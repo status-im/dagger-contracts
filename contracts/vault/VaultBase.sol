@@ -150,10 +150,17 @@ abstract contract VaultBase {
     Recipient recipient,
     uint128 amount
   ) internal {
-    Balance storage balance = _balances[controller][context][recipient];
+    Balance memory balance = _balances[controller][context][recipient];
     require(amount <= balance.available, InsufficientBalance());
+
     balance.available -= amount;
     balance.designated += amount;
+
+    Flow memory flow = _flows[controller][context][recipient];
+    Lock memory lock = _locks[controller][context];
+    _checkFlowInvariant(balance, lock, flow);
+
+    _balances[controller][context][recipient] = balance;
   }
 
   function _lockup(
