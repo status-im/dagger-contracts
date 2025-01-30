@@ -24,6 +24,7 @@ module.exports = {
   networks: {
     hardhat: {
       tags: ["local"],
+      allowBlocksWithSameTimestamp: true
     },
     codexdisttestnetwork: {
       url: `${process.env.DISTTEST_NETWORK_URL}`,

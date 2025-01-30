@@ -3,7 +3,7 @@ const { ethers } = require("hardhat")
 const { randomBytes } = ethers.utils
 const {
   currentTime,
-  advanceTimeToForNextBlock,
+  advanceTimeTo,
   mine,
   setAutomine,
   snapshot,
@@ -324,7 +324,7 @@ describe("Vault", function () {
 
     it("does not allow withdrawal before lock expires", async function () {
       await vault.lock(context, expiry, expiry)
-      await advanceTimeToForNextBlock(expiry - 1)
+      await advanceTimeTo(expiry - 1)
       const withdrawing = vault.withdraw(context, account.address)
       await expect(withdrawing).to.be.revertedWith("Locked")
     })
@@ -350,7 +350,7 @@ describe("Vault", function () {
 
     it("allows withdrawal after lock expires", async function () {
       await vault.lock(context, expiry, expiry)
-      await advanceTimeToForNextBlock(expiry)
+      await advanceTimeTo(expiry)
       const before = await token.balanceOf(account.address)
       await vault.withdraw(context, account.address)
       const after = await token.balanceOf(account.address)
@@ -379,7 +379,7 @@ describe("Vault", function () {
 
     it("cannot extend an expired lock", async function () {
       await vault.lock(context, expiry, maximum)
-      await advanceTimeToForNextBlock(expiry)
+      await advanceTimeTo(expiry)
       const extending = vault.extendLock(context, maximum)
       await expect(extending).to.be.revertedWith("LockRequired")
     })
@@ -392,7 +392,7 @@ describe("Vault", function () {
 
     it("deletes lock when funds are withdrawn", async function () {
       await vault.lock(context, expiry, expiry)
-      await advanceTimeToForNextBlock(expiry)
+      await advanceTimeTo(expiry)
       await vault.withdraw(context, account.address)
       expect((await vault.getLock(context))[0]).to.equal(0)
       expect((await vault.getLock(context))[1]).to.equal(0)
@@ -417,11 +417,6 @@ describe("Vault", function () {
 
     async function getBalance(recipient) {
       return await vault.getBalance(context, recipient)
-    }
-
-    async function advanceTimeTo(timestamp) {
-      await advanceTimeToForNextBlock(timestamp)
-      await mine()
     }
 
     it("requires that a lock is set", async function () {
@@ -512,7 +507,7 @@ describe("Vault", function () {
         await vault.flow(context, sender, receiver2, 2)
         await mine()
         const start = await currentTime()
-        advanceTimeToForNextBlock(start + 4)
+        advanceTimeTo(start + 4)
         await vault.flow(context, receiver2, receiver, 1)
         await mine()
         expect(await getBalance(sender)).to.equal(deposit - 12)

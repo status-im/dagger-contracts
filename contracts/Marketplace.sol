@@ -512,13 +512,14 @@ contract Marketplace is SlotReservations, Proofs, StateRetrieval, Endian {
   }
 
   function requestEnd(RequestId requestId) public view returns (uint256) {
-    uint256 end = _requestContexts[requestId].endsAt;
     RequestState state = requestState(requestId);
     if (state == RequestState.New || state == RequestState.Started) {
-      return end;
-    } else {
-      return Math.min(end, block.timestamp - 1);
+      return _requestContexts[requestId].endsAt;
     }
+    if (state == RequestState.Cancelled) {
+      return _requestContexts[requestId].expiresAt;
+    }
+    return Math.min(_requestContexts[requestId].endsAt, block.timestamp);
   }
 
   function requestExpiry(RequestId requestId) public view returns (uint256) {
